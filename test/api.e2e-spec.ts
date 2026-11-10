@@ -31,7 +31,9 @@ describe('API (e2e)', () => {
       available_cents: 0,
       pending_cents: 0,
       held_cents: 0,
+      owed_cents: 0,
     });
+    expect((await http().get('/wallets/juan').expect(200)).body).toMatchObject({ owed_cents: 0 });
 
     const dep = await post('/wallets/juan/deposits', { amount_cents: 10_000 }).expect(201);
     expect(dep.body).toMatchObject({ owner: 'juan', amount_cents: 10_000, status: 'pending' });
@@ -179,6 +181,24 @@ describe('API (e2e)', () => {
   it('transfer to the same wallet -> 400 invalid_request', async () => {
     const res = await post('/transfers', { from: 'juan', to: 'juan', amount_cents: 1 }).expect(400);
     expect(res.body.error.code).toBe('invalid_request');
+  });
+
+  it('GET /wallets/:owner shows owed_cents from the receivable', async () => {
+    await fund('owes', 200);
+    await ctx.tx.run(async () => {
+      const receivable = await ctx.wallets.ensureReceivable('owes');
+      await ctx.ledger.postTransaction({
+        idempotencyKey: 'owes:overcapture',
+        kind: 'test_overcapture',
+        lines: [
+          { accountId: 'user:owes:available', amountCents: 200 },
+          { accountId: receivable, amountCents: 50 },
+          { accountId: 'sys:payouts_out', amountCents: -250 },
+        ],
+      });
+    });
+    const res = await http().get('/wallets/owes').expect(200);
+    expect(res.body).toMatchObject({ available_cents: 0, owed_cents: 50 });
   });
 
   it('the ledger reconciles after every e2e scenario', async () => {

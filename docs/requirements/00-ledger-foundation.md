@@ -65,6 +65,13 @@ Mistakes and undo operations are new journal transactions, never edits.
   already spent the money), it fails with `insufficient_funds`; the calling feature must then use a
   **partial** correction with its own key that splits the shortfall into `user:<owner>:receivable`
   (§5). Reversal is only for exact undo.
+- **Partial corrections must set `metadata.corrects = <originalKey>`.** Once one exists, a full
+  `reverseTransaction` of the original is refused (`409 not_reversible`); otherwise the money would
+  be refunded twice.
+- A reversal can't be reversed (`409 not_reversible`): re-apply the original under a new key instead.
+- On replay, the existing `<originalKey>:reversal` journal must have `metadata.reversal_of =
+  originalKey`; if another journal happens to use that key, the call fails with `409 not_reversible`
+  instead of silently reporting success.
 
 ## 5. Per-user receivable
 
@@ -78,7 +85,8 @@ ACH return) without making `available` negative.
 - **Wallet view**: `GET /wallets/:owner` adds `owed_cents` (the receivable balance, `0` if the
   account doesn't exist yet).
 - **Splitting a debit**: features never compute splits from stale reads. They call
-  `lockBalances([available, receivable, ...])`, take `fromAvailable = min(amount, available)` and put
+  `lockBalances([available, receivable, <counterparty>, ...])` with **every** account the journal
+  will touch (§6), take `fromAvailable = min(amount, available)` and put
   the rest on the receivable, then post one balanced journal.
 - **Sweeping and write-offs** are feature policy (the card plan defines both). The foundation only
   provides the account.
@@ -90,11 +98,20 @@ lockBalances(accountIds: string[]): Promise<Map<string, { balanceCents: number; 
 ```
 
 - Runs `select … from accounts join balances … where id = any($1) order by id for update of balances`
-  in the current transaction: the same query and lock order `postTransaction` uses, so there are no
-  deadlocks.
+  in the current transaction, the same query `postTransaction` uses.
 - Missing accounts → `not_found` with the missing ids.
 - `postTransaction` re-locks the same rows (a no-op inside the same transaction) and re-validates, so
   a wrong split is still rejected.
+- **Contract: lock every account any later post in the transaction will touch, counterparties
+  included, in one call.** Locks are only deadlock-free when each transaction takes them in global id
+  order. Locking `user:x:*` and then posting with `sys:payouts_out` would take a `sys:` lock after a
+  `user:` lock, and a concurrent payout taking them the other way round deadlocks. So once
+  `lockBalances` ran in a transaction, `postTransaction` throws (a programming error → 500) if it
+  touches an account that wasn't locked, and a second `lockBalances` may only add accounts that sort
+  after everything already locked.
+- The same applies to features that post **more than once** in one transaction (e.g. FX "capture,
+  then deliver" in one go): call `lockBalances` with the union of all their accounts first, and the
+  check above then covers every post.
 
 ## 7. Webhook idempotency: `@Idempotent({ keyFrom })`
 
@@ -136,6 +153,7 @@ get the stored 401 replayed.
 | Code | Status | Used by |
 |---|---|---|
 | `invalid_webhook_signature` | 401 | both |
+| `not_reversible` | 409 | both (reversal of a reversal, of a corrected transaction, or key clash) |
 
 Feature-specific codes are listed in each feature plan.
 
@@ -153,7 +171,23 @@ Feature-specific codes are listed in each feature plan.
   valid delivery with the same event id is processed normally.
 - `reconcile().ok` is `true` at the end of every new spec file.
 
-## 11. Not in this phase
+## 11. Decisions before the first partner webhook endpoint
+
+Raised in the review of this phase; neither feature has an endpoint yet, so they are decided there.
+
+1. **Request hash on webhook retries.** The interceptor compares a hash of `params + body`. Partners
+   that change fields between retries (attempt number, `sent_at`) would get `422
+   idempotency_key_reused` on a legitimate retry, and the partner would keep retrying. Each webhook
+   route must either hash only stable fields or skip the hash comparison.
+2. **Every `keyFrom` route needs a signature guard.** Nothing enforces it today. Add a test that walks
+   the registered routes and fails if a handler with `keyFrom` has no signature guard (or a combined
+   `@Webhook({ keyFrom, guard })` decorator).
+3. **Signature format.** The shared helper takes a bare hex HMAC-SHA256 with no timestamp. Lithic-style
+   `t=…,v1=…` headers or base64 signatures need their own parsing (and a replay window) in front of it.
+4. **Receivable in reversals.** Reversing a split debit after the receivable was partly swept fails
+   with `insufficient_funds` on `user:<owner>:receivable`; ops tooling should explain that case.
+
+## 12. Not in this phase
 
 Sweeping receivables, write-off policy, wallet freezes, the ACH-returned-after-settlement flow (its
 own requirements doc, FX Q7), and any feature-specific account or table.
