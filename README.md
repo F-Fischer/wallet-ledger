@@ -30,6 +30,12 @@ concurrency, data model) and manual test cases live in
 Feature requirements live in [`docs/requirements/`](docs/requirements/): the shared ledger foundation,
 FX remittances (USD → MXN) and debit card issuing.
 
+Each implemented feature has a page in [`docs/features/`](docs/features/) with the problem it
+solves, diagrams of how it works and commands to try it:
+
+- [Ledger foundation](docs/features/ledger-foundation.md): receivable, reversals, lock contract,
+  partner webhook idempotency and signatures.
+
 ## Invariants
 
 1. Amounts are integer cents (`bigint`); the `pg` parser rejects values outside
