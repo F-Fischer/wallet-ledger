@@ -1,4 +1,4 @@
-# Félix Wallet MVP (NestJS + Postgres)
+# Wallet Ledger (NestJS + Postgres)
 
 A USD wallet built on an immutable **double-entry ledger**: ACH deposits (pending → settled /
 returned), holds (reserve → capture / release), transfers, idempotency on every `POST`, and a

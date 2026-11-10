@@ -130,6 +130,18 @@ describe('Wallet operations (Postgres)', () => {
       expect(await wallet('t_b')).toMatchObject({ available_cents: 1_500 });
     });
 
+    it('two senders may use the same client key without colliding', async () => {
+      await fundedWallet(ctx, 't_c', 1_000);
+      await fundedWallet(ctx, 't_d', 1_000);
+      await fundedWallet(ctx, 't_e', 0);
+      const c = await run(() => ctx.transfers.create('t_c', 't_e', 100, 'same-key'));
+      const d = await run(() => ctx.transfers.create('t_d', 't_e', 200, 'same-key'));
+      expect(d.transaction_id).not.toBe(c.transaction_id);
+      expect(await wallet('t_c')).toMatchObject({ available_cents: 900 });
+      expect(await wallet('t_d')).toMatchObject({ available_cents: 800 });
+      expect(await wallet('t_e')).toMatchObject({ available_cents: 300 });
+    });
+
     it('transferring more than available is insufficient_funds and changes nothing', async () => {
       expect(
         await errorCode(() => run(() => ctx.transfers.create('t_a', 't_b', 999_999, 'k-2'))),

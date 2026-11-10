@@ -95,7 +95,7 @@ flowchart LR
 | 4 | Create hold | `user:available` | `user:held` | `hold:<id>:created` |
 | 5 | Capture hold | `user:held` | `sys:payouts_out` | `hold:<id>:captured` |
 | 6 | Release hold | `user:held` | `user:available` | `hold:<id>:released` |
-| 7 | Transfer | `userA:available` | `userB:available` | `transfer:<Idempotency-Key>` |
+| 7 | Transfer | `userA:available` | `userB:available` | `transfer:<from>:<Idempotency-Key>` |
 
 > **Why does a credit increase the user's balance?** User accounts are **credit-normal**: they represent money the platform owes the user, so they grow with credits. `sys:funding_receivable` and `sys:bank` are debit-normal and grow with debits. `LedgerService` turns each line into a balance change according to the account's `normal_side` (see *Balance sign math* in Part 2).
 

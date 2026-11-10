@@ -24,7 +24,8 @@ export class TransfersService {
       throw new DomainError('invalid_request', 'cannot transfer to the same wallet');
     }
     const { transactionId } = await this.ledger.postTransaction({
-      idempotencyKey: `transfer:${idempotencyKey}`,
+      // Scoped by sender: two users may pick the same client key.
+      idempotencyKey: `transfer:${from}:${idempotencyKey}`,
       kind: 'transfer',
       lines: debitCredit(acct(from, 'available'), acct(to, 'available'), amountCents),
       metadata: { from, to },
