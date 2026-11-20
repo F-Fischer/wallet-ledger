@@ -1,0 +1,77 @@
+### Full flow — run in order (WebStorm / VS Code REST Client)
+@base = http://localhost:3000
+@owner = juan
+
+### Health
+GET {{base}}/health
+
+### Create wallet
+POST {{base}}/wallets
+Content-Type: application/json
+Idempotency-Key: wallet-{{owner}}-1
+
+{ "owner": "{{owner}}" }
+
+### ACH deposit (stays pending)
+# @name deposit
+POST {{base}}/wallets/{{owner}}/deposits
+Content-Type: application/json
+Idempotency-Key: deposit-{{owner}}-1
+
+{ "amount_cents": 10000 }
+
+### Get deposit
+GET {{base}}/deposits/{{deposit.response.body.id}}
+
+### Balance: 10000 pending, 0 available
+GET {{base}}/wallets/{{owner}}
+
+### Settle the deposit (Stripe webhook)
+POST {{base}}/deposits/{{deposit.response.body.id}}/settle
+Idempotency-Key: settle-{{deposit.response.body.id}}
+
+### Balance: 10000 available
+GET {{base}}/wallets/{{owner}}
+
+### Hold 2500 for a payout
+# @name hold
+POST {{base}}/wallets/{{owner}}/holds
+Content-Type: application/json
+Idempotency-Key: hold-{{owner}}-1
+
+{ "amount_cents": 2500, "ttl_seconds": 900 }
+
+### Capture the hold (the payout went out)
+POST {{base}}/holds/{{hold.response.body.id}}/capture
+Idempotency-Key: capture-{{hold.response.body.id}}
+
+### Retry: same key → same body + header Idempotent-Replayed: true
+POST {{base}}/holds/{{hold.response.body.id}}/capture
+Idempotency-Key: capture-{{hold.response.body.id}}
+
+### Second wallet
+POST {{base}}/wallets
+Content-Type: application/json
+Idempotency-Key: wallet-maria-1
+
+{ "owner": "maria" }
+
+### Transfer juan → maria
+POST {{base}}/transfers
+Content-Type: application/json
+Idempotency-Key: transfer-juan-maria-1
+
+{ "from": "{{owner}}", "to": "maria", "amount_cents": 1000 }
+
+### Overdraw → 422 insufficient_funds
+POST {{base}}/transfers
+Content-Type: application/json
+Idempotency-Key: transfer-juan-maria-2
+
+{ "from": "{{owner}}", "to": "maria", "amount_cents": 99999999 }
+
+### Entry history
+GET {{base}}/wallets/{{owner}}/entries?limit=20
+
+### Reconciliation
+GET {{base}}/admin/reconciliation

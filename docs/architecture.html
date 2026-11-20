@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wallet Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+.part-title { padding-top: 48px; display: grid; gap: 6px; }
+.part-title h2 { font-size: 30px; }
+nav.toc .sep { color: var(--rule); }
+
+/* Layout: one reading column like a ledger book, with a sticky index of sections on top. */
+:root {
+  --bg: #f6f8f7;
+  --surface: #ffffff;
+  --ink: #17221e;
+  --muted: #5b6b65;
+  --rule: #d6dfdb;
+  --accent: #0f6b55;
+  --accent-soft: #e1efea;
+  --debit: #1f5fa8;
+  --credit: #a35c0a;
+  --bad: #b03a2e;
+  --code-bg: #eef2f0;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101614; --surface: #17201d; --ink: #e3ebe8; --muted: #93a39d; --rule: #2b3833;
+    --accent: #4fc3a1; --accent-soft: #1b3029; --debit: #7fb2ee; --credit: #e6a75a; --bad: #ee8377;
+    --code-bg: #1d2824; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101614; --surface: #17201d; --ink: #e3ebe8; --muted: #93a39d; --rule: #2b3833;
+  --accent: #4fc3a1; --accent-soft: #1b3029; --debit: #7fb2ee; --credit: #e6a75a; --bad: #ee8377;
+  --code-bg: #1d2824; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.6 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 940px; margin: 0 auto; padding-block: 32px 80px; }
+h1, h2, h3, h4 { font-family: var(--f-display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 26px; font-weight: 600; }
+h3 { font-size: 19px; font-weight: 600; }
+h4 { font-size: 16px; font-weight: 600; font-family: var(--f-body); }
+p { margin: 0; max-width: 68ch; }
+code, pre { font-family: var(--f-mono); }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: grid; gap: 12px; padding-bottom: 20px; }
+.eyebrow { font: 500 12px/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { color: var(--muted); font-size: 16px; }
+
+nav.toc {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); border-block: 1px solid var(--rule);
+  display: flex; gap: 4px 18px; flex-wrap: wrap; padding: 10px 0; margin-bottom: 8px;
+  font-size: 13px;
+}
+nav.toc a { color: var(--muted); text-decoration: none; }
+nav.toc a:hover { color: var(--accent); }
+
+section.part { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 40px; scroll-margin-top: 60px; }
+.figure { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; overflow-x: auto; }
+.figure pre.mermaid { margin: 0; background: transparent; text-align: center; }
+.caption { font-size: 13px; color: var(--muted); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.cols > * { min-width: 0; }
+
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.dr { color: var(--debit); font-weight: 600; }
+.cr { color: var(--credit); font-weight: 600; }
+
+.tbl-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 11.5px/1.3 var(--f-mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--code-bg); }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td .acc { font-family: var(--f-mono); font-size: 12.5px; }
+.chg { background: var(--accent-soft); }
+
+.inv { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.inv li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: baseline; }
+.inv .n { font: 600 13px var(--f-mono); color: var(--accent); }
+.inv li > div { min-width: 0; }
+.inv .where { font-size: 13px; color: var(--muted); }
+
+/* Test cases */
+.progress { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.bar { flex: 1 1 200px; height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.progress button { font: inherit; background: none; border: 1px solid var(--rule); color: var(--muted); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+.group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding-top: 18px; }
+.group h3 { border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
+ol.cases { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.case { display: grid; grid-template-columns: 64px minmax(0, 1fr); min-width: 0; gap: 12px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px; }
+.case-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.case.done { opacity: 0.62; }
+.case.done h4 { text-decoration: line-through; text-decoration-color: var(--muted); }
+.check { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding-top: 2px; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.cid { font: 500 12px var(--f-mono); color: var(--muted); }
+.why { color: var(--muted); font-size: 14px; }
+.code { position: relative; background: var(--code-bg); border-radius: 6px; }
+.code pre { margin: 0; padding: 12px 14px; padding-right: 72px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+.copy { position: absolute; top: 6px; right: 6px; font: 500 11.5px var(--f-body); background: var(--surface); color: var(--ink); border: 1px solid var(--rule); border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+.exp { font-size: 14px; }
+.lbl { font: 500 11px var(--f-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-right: 6px; }
+.note { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; color: var(--muted); font-size: 14px; }
+@media (max-width: 520px) {
+  .case { grid-template-columns: minmax(0, 1fr); }
+  .check { flex-direction: row; justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">wallet-ledger · NestJS + Postgres</span>
+  <h1>Wallet Ledger</h1>
+  <p class="lede">How the wallet is built: every money movement is a double-entry journal transaction in Postgres, and balances are derived from those entries. Part 1 is the overview, Part 2 goes file by file through how the app works inside, and the end has manual test cases with <code>curl</code>.</p>
+</header>
+<nav class="toc" aria-label="Sections"><a href="#architecture">Architecture</a> <a href="#accounts">Accounts and journal entries</a> <a href="#example">Worked example</a> <a href="#states">Deposit and hold states</a> <a href="#idempotency">Idempotency</a> <a href="#concurrency">Concurrency: why it never goes negative</a> <a href="#data-model">Data model</a> <a href="#invariants">Invariants and where they are enforced</a> <span class="sep" aria-hidden="true">|</span> <a href="#real-world">How it maps to the real world</a> <a href="#project-map">Project map</a> <a href="#modules">Nest module graph</a> <a href="#lifecycle">Request lifecycle inside Nest</a> <a href="#boot">Boot and shutdown</a> <a href="#transaction-host">TransactionHost and AsyncLocalStorage</a> <a href="#post-transaction">postTransaction step by step</a> <a href="#sign-math">Balance sign math</a> <a href="#settle-flow">Full trace: settling a deposit</a> <a href="#hold-failure">Full trace: a hold without funds</a> <a href="#deadlocks">Why sorted locking prevents deadlocks</a> <a href="#errors">Error handling</a> <a href="#reconciliation">Reconciliation</a> <a href="#pagination">Entry history pagination</a> <a href="#tests">Test architecture</a> <span class="sep" aria-hidden="true">|</span> <a href="#tests-manual">Test cases</a></nav>
+<div class="part-title"><span class="eyebrow">Part 1</span><h2>Overview</h2><p class="lede">What the system does and the rules it never breaks.</p></div>
+<section class="part" id="architecture"><h2>Architecture</h2><p>A <code>POST</code> request first goes through the idempotency interceptor, which opens the Postgres transaction. Everything the controller and services do happens inside that transaction. Services never open connections: they ask <code>TransactionHost</code> for the current client, which it keeps in an <code>AsyncLocalStorage</code>. <code>GET</code> handlers open their own transaction with <code>tx.run()</code>.</p><div class="figure"><pre class="mermaid">
+flowchart LR
+  C([Client]) --&gt;|POST + Idempotency-Key| I[&quot;IdempotencyInterceptor&lt;br/&gt;opens the transaction&quot;]
+  C --&gt;|GET| CT
+  I --&gt; V[&quot;ValidationPipe&lt;br/&gt;DTOs&quot;]
+  V --&gt; CT[&quot;Controllers&lt;br/&gt;wallets · deposits&lt;br/&gt;holds · transfers&quot;]
+  CT --&gt; S[&quot;Services&lt;br/&gt;state rules&quot;]
+  S --&gt; L[&quot;LedgerService&lt;br/&gt;postTransaction&quot;]
+  S -.-&gt;|this.tx.db| TH[(&quot;TransactionHost&lt;br/&gt;AsyncLocalStorage&quot;)]
+  L -.-&gt;|this.tx.db| TH
+  I -.-&gt; TH
+  TH --&gt; PG[(&quot;Postgres&lt;br/&gt;one transaction&quot;)]
+  F[DomainExceptionFilter] -.-&gt;|&quot;error JSON&quot;| C
+</pre><p class="caption">Solid line: a call. Dotted line: everything shares the request's single Postgres client.</p></div></section>
+<section class="part" id="accounts"><h2>Accounts and journal entries</h2><p>Each wallet has three accounts of its own, plus three shared system accounts. A journal transaction moves money between accounts: it always has at least two lines and sums to exactly 0. In the database a positive amount is a <strong>debit</strong> and a negative one is a <strong>credit</strong>.</p><div class="figure"><pre class="mermaid">
+flowchart LR
+  subgraph SYS[System accounts]
+    FR[&quot;sys:funding_receivable&lt;br/&gt;Stripe owes us&quot;]
+    BK[&quot;sys:bank&lt;br/&gt;USD in the bank&quot;]
+    PO[&quot;sys:payouts_out&lt;br/&gt;payouts pending settlement&quot;]
+  end
+  subgraph USR[User wallet]
+    P[user:pending]
+    A[user:available]
+    H[user:held]
+  end
+  FR --&gt;|1 · deposit initiated| P
+  P --&gt;|2 · deposit settled| A
+  P --&gt;|3 · deposit returned| FR
+  A --&gt;|4 · create hold| H
+  H --&gt;|5 · capture| PO
+  H --&gt;|6 · release| A
+  A --&gt;|7 · transfer| A2[other user:available]
+</pre><p class="caption">Each arrow is a journal transaction: money leaves the source account (debit) and enters the destination (credit). Settlement also moves money from <code>funding_receivable</code> to <code>bank</code>.</p></div><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Operation</th><th>Debit (+)</th><th>Credit (−)</th><th>Journal key</th></tr></thead><tbody><tr><td>1</td><td>Deposit initiated</td><td><code>sys:funding_receivable</code></td><td><code>user:pending</code></td><td><code>deposit:&lt;id&gt;:initiated</code></td></tr><tr><td>2</td><td>Deposit settled</td><td><code>user:pending</code> + <code>sys:bank</code></td><td><code>user:available</code> + <code>sys:funding_receivable</code></td><td><code>deposit:&lt;id&gt;:settled</code></td></tr><tr><td>3</td><td>Deposit returned</td><td><code>user:pending</code></td><td><code>sys:funding_receivable</code></td><td><code>deposit:&lt;id&gt;:returned</code></td></tr><tr><td>4</td><td>Create hold</td><td><code>user:available</code></td><td><code>user:held</code></td><td><code>hold:&lt;id&gt;:created</code></td></tr><tr><td>5</td><td>Capture hold</td><td><code>user:held</code></td><td><code>sys:payouts_out</code></td><td><code>hold:&lt;id&gt;:captured</code></td></tr><tr><td>6</td><td>Release hold</td><td><code>user:held</code></td><td><code>user:available</code></td><td><code>hold:&lt;id&gt;:released</code></td></tr><tr><td>7</td><td>Transfer</td><td><code>userA:available</code></td><td><code>userB:available</code></td><td><code>transfer:&lt;Idempotency-Key&gt;</code></td></tr></tbody></table></div><p class="note"><strong>Why does a credit increase the user's balance?</strong> User accounts are <strong>credit-normal</strong>: they represent money the platform owes the user, so they grow with credits. <code>sys:funding_receivable</code> and <code>sys:bank</code> are debit-normal and grow with debits. <code>LedgerService</code> turns each line into a balance change according to the account's <code>normal_side</code> (see <em>Balance sign math</em> in Part 2).</p></section>
+<section class="part" id="example"><h2>Worked example</h2><p>Juan deposits $100 by ACH, it settles, he holds $25 for a payout and the payout goes out. Amounts in cents. Bold cells are the accounts that change in each step.</p><div class="tbl-wrap"><table><thead><tr><th>Step</th><th class="num">pending</th><th class="num">available</th><th class="num">held</th><th class="num">funding_rec.</th><th class="num">bank</th><th class="num">payouts_out</th></tr></thead><tbody><tr><td>Wallet created</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr><tr><td>1 · Deposit initiated (10,000)</td><td class="num chg">10,000</td><td class="num">0</td><td class="num">0</td><td class="num chg">10,000</td><td class="num">0</td><td class="num">0</td></tr><tr><td>2 · Deposit settled</td><td class="num chg">0</td><td class="num chg">10,000</td><td class="num">0</td><td class="num chg">0</td><td class="num chg">10,000</td><td class="num">0</td></tr><tr><td>4 · Hold of 2,500</td><td class="num">0</td><td class="num chg">7,500</td><td class="num chg">2,500</td><td class="num">0</td><td class="num">10,000</td><td class="num">0</td></tr><tr><td>5 · Hold captured</td><td class="num">0</td><td class="num">7,500</td><td class="num chg">0</td><td class="num">0</td><td class="num">10,000</td><td class="num chg">2,500</td></tr></tbody></table></div><p>At the end the bank holds 10,000: the platform owes Juan 7,500 and 2,500 is committed to the payout. What came in equals what is owed, which is why reconciliation sums to 0.</p></section>
+<section class="part" id="states"><h2>Deposit and hold states</h2><p>Every transition locks the row with <code>SELECT … FOR UPDATE</code>. Repeating the transition the row is already in (for example, a duplicate webhook) returns the object without doing anything. Any other transition is a 409.</p><div class="cols"><div class="figure"><pre class="mermaid">
+stateDiagram-v2
+  direction TB
+  [*] --&gt; pending: POST /wallets/{owner}/deposits
+  pending --&gt; settled: settle
+  pending --&gt; returned: return
+  settled --&gt; settled: settle (no-op)
+  returned --&gt; returned: return (no-op)
+  settled --&gt; [*]
+  returned --&gt; [*]
+</pre><p class="caption">Deposit. Settling a returned one, or returning a settled one: <code>409 deposit_not_pending</code>.</p></div><div class="figure"><pre class="mermaid">
+stateDiagram-v2
+  direction TB
+  [*] --&gt; active: POST /wallets/{owner}/holds
+  active --&gt; captured: capture (if not expired)
+  active --&gt; released: release (even if expired)
+  captured --&gt; captured: capture (no-op)
+  released --&gt; released: release (no-op)
+  captured --&gt; [*]
+  released --&gt; [*]
+</pre><p class="caption">Hold. 15-minute TTL by default. Capturing an expired one: <code>409 hold_expired</code>. Crossing states: <code>409 hold_not_active</code>.</p></div></div></section>
+<section class="part" id="idempotency"><h2>Idempotency</h2><p>The key, the response and the money movements are written in <strong>one transaction</strong>: either all of it commits, or none of it. If two requests arrive at once with the same key, the second one waits on the <code>INSERT</code> until the first commits, then returns the stored response.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant I as Interceptor
+  participant DB as Postgres
+  participant H as Handler + services
+  C-&gt;&gt;I: POST /transfers · Idempotency-Key: K
+  I-&gt;&gt;DB: BEGIN
+  I-&gt;&gt;DB: INSERT idempotency_keys (K, route, hash) ON CONFLICT DO NOTHING
+  alt Key is new
+    I-&gt;&gt;DB: SAVEPOINT handler
+    I-&gt;&gt;H: run
+    H-&gt;&gt;DB: journal entries + balances
+    alt Success
+      I-&gt;&gt;DB: store 201 + body
+    else Business error (e.g. 422)
+      I-&gt;&gt;DB: ROLLBACK TO SAVEPOINT handler
+      I-&gt;&gt;DB: store 422 + error
+    end
+    I-&gt;&gt;DB: COMMIT
+    I--&gt;&gt;C: response
+  else Key already exists
+    alt Same request hash
+      I-&gt;&gt;DB: COMMIT
+      I--&gt;&gt;C: stored response + Idempotent-Replayed: true
+    else Different hash
+      I-&gt;&gt;DB: ROLLBACK
+      I--&gt;&gt;C: 422 idempotency_key_reused
+    end
+  end
+</pre><p class="caption">An unexpected error (500) or a validation error (400) rolls back everything: the key is not stored and the client can retry with a fixed body. On top of that, every journal transaction has its own unique key, a second safety net in case the same entry is attempted twice.</p></div></section>
+<section class="part" id="concurrency"><h2>Concurrency: why it never goes negative</h2><p>Before computing the new balance, <code>postTransaction</code> locks the <code>balances</code> rows with <code>FOR UPDATE</code>, always sorted by <code>account_id</code> so two transactions never lock in crossed order (deadlock). Two holds on the same wallet run one after the other.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  participant T1 as Hold A (1,000)
+  participant DB as balances
+  participant T2 as Hold B (1,000)
+  Note over DB: available = 1,000
+  T1-&gt;&gt;DB: SELECT … FOR UPDATE (available, held)
+  DB--&gt;&gt;T1: lock OK · available = 1,000
+  T2-&gt;&gt;DB: SELECT … FOR UPDATE (available, held)
+  Note right of T2: waits for the lock
+  T1-&gt;&gt;DB: available = 0, held = 1,000
+  T1-&gt;&gt;DB: COMMIT (releases the lock)
+  DB--&gt;&gt;T2: lock OK · available = 0
+  T2-&gt;&gt;T2: 0 − 1,000 &lt; 0 → insufficient_funds
+  T2-&gt;&gt;DB: ROLLBACK (the hold row is gone too)
+</pre><p class="caption">The concurrency test fires 50 holds of 1,000 in parallel against 10,000: exactly 10 get through.</p></div></section>
+<section class="part" id="data-model"><h2>Data model</h2><div class="figure"><pre class="mermaid">
+erDiagram
+  accounts ||--|| balances : &quot;balance cache&quot;
+  accounts ||--o{ entries : &quot;lines&quot;
+  journal_transactions ||--|{ entries : &quot;transaction (sums to 0)&quot;
+  accounts {
+    text id PK &quot;user:juan:available&quot;
+    text owner_id
+    text kind &quot;pending|available|held|system&quot;
+    text normal_side &quot;debit|credit&quot;
+    bool allow_negative
+  }
+  journal_transactions {
+    uuid id PK
+    text idempotency_key UK
+    text kind
+    jsonb metadata
+  }
+  entries {
+    bigserial id PK
+    uuid transaction_id FK
+    text account_id FK
+    bigint amount_cents &quot;+ debit / - credit&quot;
+  }
+  balances {
+    text account_id PK
+    bigint balance_cents
+    bigint version
+  }
+  deposits {
+    uuid id PK
+    text owner_id
+    bigint amount_cents
+    text status
+  }
+  holds {
+    uuid id PK
+    text owner_id
+    bigint amount_cents
+    text status
+    timestamptz expires_at
+  }
+  idempotency_keys {
+    text key PK
+    text route PK
+    text request_hash
+    int response_status
+    jsonb response_body
+  }
+</pre><p class="caption"><code>entries</code> and <code>journal_transactions</code> have triggers that reject UPDATE and DELETE. <code>deposits</code> and <code>holds</code> track process state; the money itself lives only in the ledger.</p></div></section>
+<section class="part" id="invariants"><h2>Invariants and where they are enforced</h2><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Invariant</th><th>Where</th></tr></thead><tbody><tr><td>1</td><td>Amounts are integer cents, never floats</td><td><code>bigint</code> in the database; a <code>pg</code> parser that rejects values outside <code>Number.isSafeInteger</code>; DTOs with <code>@IsInt</code></td></tr><tr><td>2</td><td>Every transaction has ≥ 2 lines and sums to 0</td><td><code>assertBalanced</code> in <code>src/ledger/ledger.service.ts</code>, before writing</td></tr><tr><td>3</td><td>The ledger is append-only</td><td><code>forbid_mutation</code> trigger in <code>migrations/001_init.sql</code></td></tr><tr><td>4</td><td>Balances are written together with their entries</td><td>Same <code>postTransaction</code>, same transaction</td></tr><tr><td>5</td><td>No user account goes negative, even under concurrency</td><td><code>FOR UPDATE</code> sorted by <code>account_id</code> + <code>allow_negative</code> check</td></tr><tr><td>6</td><td>Exactly once per idempotency key</td><td><code>IdempotencyInterceptor</code>: key, response and entries in one transaction</td></tr><tr><td>7</td><td>A pending ACH is never spendable</td><td>Deposits credit <code>user:pending</code>; holds and transfers only debit <code>user:available</code></td></tr></tbody></table></div></section>
+<div class="part-title"><span class="eyebrow">Part 2</span><h2>Deep dive</h2><p class="lede">How the code is wired, file by file and call by call.</p></div>
+<section class="part" id="real-world"><h2>How it maps to the real world</h2><p>The API is the wallet core of a remittance app. Stripe pulls USD from the user's bank by ACH, which takes days and can bounce; a payout partner delivers the money abroad. This sequence shows which endpoint each real-world event calls.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as User (app)
+  participant API as Wallet API
+  participant S as Stripe (ACH)
+  participant PP as Payout partner
+  U-&gt;&gt;API: POST /wallets/juan/deposits (10,000)
+  API--&gt;&gt;U: deposit pending · pending_cents 10,000
+  API-&gt;&gt;S: start ACH pull (out of scope)
+  Note over S: 1–3 business days
+  alt ACH clears
+    S-&gt;&gt;API: webhook → POST /deposits/:id/settle
+    API--&gt;&gt;U: available_cents 10,000
+  else ACH bounces
+    S-&gt;&gt;API: webhook → POST /deposits/:id/return
+    API--&gt;&gt;U: pending_cents 0, available untouched
+  end
+  U-&gt;&gt;API: send $25 home → POST /wallets/juan/holds (2,500)
+  API-&gt;&gt;PP: create payout (out of scope)
+  alt Payout delivered
+    PP-&gt;&gt;API: POST /holds/:id/capture
+  else Payout failed or cancelled
+    PP-&gt;&gt;API: POST /holds/:id/release
+  end
+</pre><p class="caption">Stripe and the payout partner are simulated: in this project you call those endpoints yourself (or the tests do).</p></div></section>
+<section class="part" id="project-map"><h2>Project map</h2><p>Each folder in <code>src/</code> owns one concern. Arrows show who depends on whom: the wallet depends on the ledger, the ledger depends on the database, and nothing depends on the wallet.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  subgraph common[&quot;src/common&quot;]
+    DE[&quot;domain.error.ts&lt;br/&gt;DomainError · ERROR_STATUS · ReplayedError&quot;]
+    DF[&quot;domain-exception.filter.ts&lt;br/&gt;toErrorResponse · global filter&quot;]
+  end
+  subgraph database[&quot;src/database&quot;]
+    DM[&quot;database.module.ts&lt;br/&gt;pg Pool · bigint parser&quot;]
+    TH[&quot;transaction-host.ts&lt;br/&gt;run() · db&quot;]
+    MG[&quot;migrator.service.ts&lt;br/&gt;applies migrations/*.sql&quot;]
+  end
+  subgraph idem[&quot;src/idempotency&quot;]
+    ID[&quot;idempotent.decorator.ts&lt;br/&gt;@Idempotent()&quot;]
+    II[&quot;idempotency.interceptor.ts&quot;]
+  end
+  subgraph ledger[&quot;src/ledger&quot;]
+    LS[&quot;ledger.service.ts&lt;br/&gt;postTransaction · reconcile · debitCredit&quot;]
+    LC[&quot;ledger.controller.ts&lt;br/&gt;GET /admin/reconciliation&quot;]
+  end
+  subgraph wallet[&quot;src/wallet&quot;]
+    AC[&quot;accounts.ts&lt;br/&gt;SYS · acct()&quot;]
+    WS[&quot;wallets / deposits / holds / transfers&lt;br/&gt;.service.ts + .controller.ts&quot;]
+    DTO[&quot;dto/index.ts · owner.pipe.ts&quot;]
+  end
+  WS --&gt; LS
+  WS --&gt; TH
+  WS --&gt; AC
+  WS --&gt; DE
+  LS --&gt; TH
+  LS --&gt; DE
+  II --&gt; TH
+  II --&gt; DF
+  DF --&gt; DE
+  TH --&gt; DM
+  MG --&gt; DM
+</pre><p class="caption"><code>src/health</code> (GET /health) and <code>main.ts</code> / <code>app.module.ts</code> are left out to keep the picture readable.</p></div></section>
+<section class="part" id="modules"><h2>Nest module graph</h2><p><code>AppModule</code> wires everything. <code>ConfigModule</code> and <code>DatabaseModule</code> are global, so any provider can inject <code>ConfigService</code>, <code>PG_POOL</code> or <code>TransactionHost</code> without importing them. The filter, the validation pipe and the interceptor are registered as <code>APP_*</code> providers, which makes them apply to every route, in tests too.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  APP[&quot;AppModule&lt;br/&gt;controllers: HealthController&lt;br/&gt;APP_FILTER: DomainExceptionFilter&lt;br/&gt;APP_PIPE: ValidationPipe&quot;]
+  CFG[&quot;ConfigModule (global)&lt;br/&gt;reads .env → DATABASE_URL&quot;]
+  DB[&quot;DatabaseModule (global)&lt;br/&gt;PG_POOL · TransactionHost&lt;br/&gt;MigratorService · PoolCloser&quot;]
+  IDM[&quot;IdempotencyModule&lt;br/&gt;APP_INTERCEPTOR: IdempotencyInterceptor&quot;]
+  LM[&quot;LedgerModule&lt;br/&gt;LedgerService · LedgerController&quot;]
+  WM[&quot;WalletModule&lt;br/&gt;Wallets / Deposits / Holds / Transfers&lt;br/&gt;services + controllers&quot;]
+  APP --&gt; CFG
+  APP --&gt; DB
+  APP --&gt; IDM
+  APP --&gt; LM
+  APP --&gt; WM
+  WM --&gt;|imports| LM
+  DB -.-&gt;|injects ConfigService| CFG
+  IDM -.-&gt;|injects TransactionHost| DB
+  LM -.-&gt;|injects TransactionHost| DB
+  WM -.-&gt;|injects TransactionHost| DB
+</pre><p class="caption">Solid line: <code>imports</code>. Dotted line: injection through a global module.</p></div></section>
+<section class="part" id="lifecycle"><h2>Request lifecycle inside Nest</h2><p>Nest runs a fixed pipeline for every request. The important detail: <strong>pipes run inside <code>next.handle()</code></strong>, so the interceptor's transaction is already open when validation runs, and a validation error travels back through the interceptor's <code>catch</code>. That is why the interceptor decides what to store by error type.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  R[&quot;HTTP request&quot;] --&gt; EX[&quot;Express: JSON body parser, route match&quot;]
+  EX --&gt; IB{&quot;@Idempotent() handler?&quot;}
+  IB --&gt;|no, GET| PIPES
+  IB --&gt;|yes| KEY{&quot;Idempotency-Key&lt;br/&gt;present and ≤ 255?&quot;}
+  KEY --&gt;|no| ERR400[&quot;DomainError&lt;br/&gt;idempotency_key_required&quot;]
+  KEY --&gt;|yes| TX[&quot;tx.run: BEGIN&lt;br/&gt;claim key · SAVEPOINT&quot;]
+  TX --&gt; PIPES[&quot;Pipes&lt;br/&gt;ValidationPipe (body DTO, query DTO)&lt;br/&gt;OwnerPipe · ParseUUIDPipe (params)&quot;]
+  PIPES --&gt;|invalid| BRE[&quot;BadRequestException&quot;]
+  PIPES --&gt;|valid| H[&quot;Controller handler → service&quot;]
+  H --&gt; IA[&quot;Interceptor after-part&lt;br/&gt;store response · COMMIT&quot;]
+  IA --&gt; RES[&quot;Nest sends JSON&lt;br/&gt;status from route: 201 or @HttpCode&quot;]
+  ERR400 --&gt; FIL[&quot;DomainExceptionFilter&lt;br/&gt;error JSON&quot;]
+  BRE --&gt; FIL
+  H --&gt;|throws| FIL
+</pre><p class="caption">Guards and middleware exist in Nest but this app doesn't use them (no auth yet).</p></div></section>
+<section class="part" id="boot"><h2>Boot and shutdown</h2><p><code>pnpm start:dev</code> builds the module graph, creates the pool, runs migrations in <code>onModuleInit</code> and only then starts listening. A Postgres advisory lock makes sure two app instances (or two test files) never migrate at the same time.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant M as main.ts
+  participant N as NestFactory
+  participant DBM as DatabaseModule
+  participant MG as MigratorService
+  participant PG as Postgres
+  M-&gt;&gt;N: create(AppModule)
+  N-&gt;&gt;DBM: import (registers bigint parser for OID 20)
+  N-&gt;&gt;DBM: useFactory → new Pool(DATABASE_URL)
+  N-&gt;&gt;MG: onModuleInit()
+  MG-&gt;&gt;PG: pg_advisory_lock(727001)
+  MG-&gt;&gt;PG: CREATE TABLE IF NOT EXISTS schema_migrations
+  MG-&gt;&gt;PG: SELECT name FROM schema_migrations
+  loop each migrations/*.sql not yet applied, sorted
+    MG-&gt;&gt;PG: BEGIN · run file · INSERT schema_migrations · COMMIT
+  end
+  MG-&gt;&gt;PG: pg_advisory_unlock
+  M-&gt;&gt;N: app.listen(PORT)
+  Note over M,PG: on SIGTERM (enableShutdownHooks): PoolCloser → pool.end()
+</pre><p class="caption">Migrations are tracked by file name. To change the schema, add <code>002_….sql</code>; never edit an applied file.</p></div></section>
+<section class="part" id="transaction-host"><h2>TransactionHost and AsyncLocalStorage</h2><p><code>AsyncLocalStorage</code> gives each request its own invisible "context slot" that follows every <code>await</code>. <code>run()</code> puts the transaction's client in that slot; anything called inside reads it with <code>this.tx.db</code>. If <code>run()</code> is called while a transaction is already open, it reuses it instead of opening a second one.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  S[&quot;tx.run(fn)&quot;] --&gt; Q{&quot;client already&lt;br/&gt;in the ALS slot?&quot;}
+  Q --&gt;|yes| RE[&quot;call fn() directly&lt;br/&gt;same transaction&quot;]
+  Q --&gt;|no| C[&quot;pool.connect()&quot;]
+  C --&gt; B[&quot;BEGIN&quot;]
+  B --&gt; A[&quot;als.run(client, fn)&lt;br/&gt;every await inside sees the client&quot;]
+  A --&gt;|fn resolves| CM[&quot;COMMIT&quot;]
+  A --&gt;|fn throws| RB[&quot;ROLLBACK · rethrow&quot;]
+  CM --&gt; REL[&quot;client.release()&quot;]
+  RB --&gt; REL
+  G[&quot;this.tx.db&quot;] --&gt; Q2{&quot;client in slot?&quot;}
+  Q2 --&gt;|yes| OK[&quot;return it&quot;]
+  Q2 --&gt;|no| ERR[&quot;throw: used outside run()&quot;]
+</pre><p class="caption">Concurrent requests each get their own slot, so 50 parallel holds are 50 separate transactions.</p></div><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  participant I as Interceptor
+  participant TH as TransactionHost
+  participant HS as HoldsService
+  participant LS as LedgerService
+  participant PG as Postgres client 7
+  I-&gt;&gt;TH: run(...)
+  TH-&gt;&gt;PG: BEGIN
+  Note over TH: ALS slot = client 7
+  I-&gt;&gt;HS: create(owner, 2500)
+  HS-&gt;&gt;TH: this.tx.db
+  TH--&gt;&gt;HS: client 7
+  HS-&gt;&gt;PG: INSERT INTO holds
+  HS-&gt;&gt;LS: postTransaction(...)
+  LS-&gt;&gt;TH: this.tx.db
+  TH--&gt;&gt;LS: client 7 (same one)
+  LS-&gt;&gt;PG: entries + balances
+  I-&gt;&gt;TH: run() returns
+  TH-&gt;&gt;PG: COMMIT · release
+</pre><p class="caption">Nobody passes the client around as an argument, yet every query lands in the same transaction.</p></div></section>
+<section class="part" id="post-transaction"><h2>postTransaction step by step</h2><p>The single entry point for moving money. Every service builds a list of lines and hands it here.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  IN[&quot;postTransaction(key, kind, lines)&quot;] --&gt; V{&quot;≥ 2 lines, all non-zero&lt;br/&gt;safe integers, sum = 0?&quot;}
+  V --&gt;|no| E1[&quot;DomainError unbalanced_transaction · 500&lt;br/&gt;a bug in our code&quot;]
+  V --&gt;|yes| J[&quot;INSERT journal_transactions&lt;br/&gt;ON CONFLICT (idempotency_key) DO NOTHING&quot;]
+  J --&gt; JR{&quot;row inserted?&quot;}
+  JR --&gt;|no| RP[&quot;return existing id&lt;br/&gt;replayed: true · nothing else&quot;]
+  JR --&gt;|yes| AG[&quot;sum lines per account&lt;br/&gt;sort account ids&quot;]
+  AG --&gt; LK[&quot;SELECT accounts JOIN balances&lt;br/&gt;WHERE id = ANY(ids) ORDER BY id&lt;br/&gt;FOR UPDATE OF balances&quot;]
+  LK --&gt; F{&quot;all accounts found?&quot;}
+  F --&gt;|no| E2[&quot;DomainError not_found · 404&quot;]
+  F --&gt;|yes| CALC[&quot;per account:&lt;br/&gt;delta = debit-normal ? sum : −sum&lt;br/&gt;next = balance + delta&quot;]
+  CALC --&gt; NEG{&quot;next &lt; 0 and&lt;br/&gt;!allow_negative?&quot;}
+  NEG --&gt;|yes| E3[&quot;DomainError insufficient_funds · 422&lt;br/&gt;details: account, balance, requested&quot;]
+  NEG --&gt;|no| W[&quot;INSERT entries via unnest&lt;br/&gt;UPDATE balances SET next, version + 1&quot;]
+  W --&gt; OUT[&quot;return transactionId, replayed: false&quot;]
+</pre><p class="caption">Any error thrown here aborts the surrounding transaction (or savepoint), so the journal row inserted in step 2 disappears too. Nothing is ever half-written.</p></div></section>
+<section class="part" id="sign-math"><h2>Balance sign math</h2><p>Lines are stored with one sign convention (+ debit, − credit), but each account reports a "natural" balance that is positive when it holds value. The account's <code>normal_side</code> translates between the two.</p><div class="tbl-wrap"><table><thead><tr><th>Account</th><th>normal_side</th><th>Line</th><th>delta</th><th>Effect</th></tr></thead><tbody><tr><td><code>sys:funding_receivable</code></td><td>debit</td><td>+10,000 (debit)</td><td>+10,000</td><td>Stripe owes us more</td></tr><tr><td><code>user:pending</code></td><td>credit</td><td>−10,000 (credit)</td><td>+10,000</td><td>User sees money on the way</td></tr><tr><td><code>user:available</code></td><td>credit</td><td>+2,500 (debit)</td><td>−2,500</td><td>User has less to spend</td></tr><tr><td><code>user:held</code></td><td>credit</td><td>−2,500 (credit)</td><td>+2,500</td><td>Money reserved</td></tr><tr><td><code>sys:payouts_out</code></td><td>credit</td><td>−2,500 (credit)</td><td>+2,500</td><td>Payout in flight</td></tr></tbody></table></div><p class="note">Rule: <code>delta = normal_side == 'debit' ? amount : −amount</code>. Reconciliation uses the same rule in SQL to recompute every balance from scratch.</p></section>
+<section class="part" id="settle-flow"><h2>Full trace: settling a deposit</h2><p>Everything that happens for one <code>POST /deposits/:id/settle</code>, from the HTTP request to the commit.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant I as IdempotencyInterceptor
+  participant DC as DepositsController
+  participant DS as DepositsService
+  participant LS as LedgerService
+  participant PG as Postgres
+  C-&gt;&gt;I: POST /deposits/:id/settle · Idempotency-Key
+  I-&gt;&gt;PG: BEGIN · INSERT idempotency_keys · SAVEPOINT
+  I-&gt;&gt;DC: next.handle() → ParseUUIDPipe(id)
+  DC-&gt;&gt;DS: settle(id)
+  DS-&gt;&gt;PG: SELECT * FROM deposits WHERE id FOR UPDATE
+  alt status = settled
+    DS--&gt;&gt;DC: return as is (duplicate webhook)
+  else status = returned
+    DS--&gt;&gt;I: throw deposit_not_pending (409)
+  else status = pending
+    DS-&gt;&gt;LS: postTransaction(deposit:id:settled, 4 lines)
+    LS-&gt;&gt;PG: INSERT journal · lock 4 balances · INSERT entries · UPDATE balances
+    DS-&gt;&gt;PG: UPDATE deposits SET status = settled
+    DS--&gt;&gt;DC: deposit view
+  end
+  DC--&gt;&gt;I: body
+  I-&gt;&gt;PG: UPDATE idempotency_keys SET 200 + body · COMMIT
+  I--&gt;&gt;C: 200 settled
+</pre><p class="caption">The deposit row lock (step 5) is what makes two simultaneous webhooks safe: the second one waits, then sees <code>settled</code>.</p></div></section>
+<section class="part" id="hold-failure"><h2>Full trace: a hold without funds</h2><p>Why a failed hold leaves nothing behind and why the retry gets the same 422 without running again.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant I as Interceptor
+  participant HS as HoldsService
+  participant LS as LedgerService
+  participant PG as Postgres
+  C-&gt;&gt;I: POST /wallets/juan/holds (99,999) · key K
+  I-&gt;&gt;PG: BEGIN · INSERT idempotency_keys (K) · SAVEPOINT handler
+  I-&gt;&gt;HS: create
+  HS-&gt;&gt;PG: INSERT INTO holds (status active)
+  HS-&gt;&gt;LS: postTransaction
+  LS-&gt;&gt;PG: INSERT journal_transactions
+  LS-&gt;&gt;PG: lock balances: available = 7,500
+  LS--&gt;&gt;I: throw insufficient_funds (422)
+  I-&gt;&gt;PG: ROLLBACK TO SAVEPOINT handler
+  Note over PG: hold row and journal row are undone, the key row stays
+  I-&gt;&gt;PG: UPDATE idempotency_keys SET 422 + error · COMMIT
+  I--&gt;&gt;C: 422 insufficient_funds
+  C-&gt;&gt;I: retry, same key K, same body
+  I-&gt;&gt;PG: BEGIN · INSERT … ON CONFLICT → 0 rows
+  I-&gt;&gt;PG: SELECT stored response · hash matches
+  I--&gt;&gt;C: 422 (stored) + Idempotent-Replayed: true
+</pre><p class="caption">The savepoint is the trick: it lets the interceptor undo the handler's writes while keeping its own key row.</p></div></section>
+<section class="part" id="deadlocks"><h2>Why sorted locking prevents deadlocks</h2><p>Two transfers in opposite directions at the same time: Ana → Beto and Beto → Ana. Each needs both <code>available</code> rows. If each locked its own sender first, they would wait on each other forever. Because <code>postTransaction</code> always locks in <code>account_id</code> order, both start with the same row, and one simply waits.</p><div class="cols"><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  participant T1 as Ana → Beto
+  participant A as user:ana:available
+  participant B as user:beto:available
+  participant T2 as Beto → Ana
+  T1-&gt;&gt;A: lock
+  T2-&gt;&gt;B: lock
+  T1-&gt;&gt;B: lock? waits for T2
+  T2-&gt;&gt;A: lock? waits for T1
+  Note over T1,T2: deadlock: Postgres kills one
+</pre><p class="caption">Without ordering (not what the code does).</p></div><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  participant T1 as Ana → Beto
+  participant A as user:ana:available
+  participant B as user:beto:available
+  participant T2 as Beto → Ana
+  T1-&gt;&gt;A: lock (first id in order)
+  T2-&gt;&gt;A: lock? waits for T1
+  T1-&gt;&gt;B: lock
+  T1-&gt;&gt;T1: write · COMMIT
+  T2-&gt;&gt;A: lock OK
+  T2-&gt;&gt;B: lock OK · write · COMMIT
+</pre><p class="caption">With <code>ORDER BY a.id FOR UPDATE</code> (what the code does).</p></div></div></section>
+<section class="part" id="errors"><h2>Error handling</h2><p>Every error ends up in <code>DomainExceptionFilter</code>, which always answers with the same JSON shape. The interceptor only stores business errors under the idempotency key.</p><div class="figure"><pre class="mermaid">
+flowchart LR
+  subgraph sources[Where errors come from]
+    D[&quot;DomainError&lt;br/&gt;services, ledger, interceptor&quot;]
+    B[&quot;BadRequestException&lt;br/&gt;ValidationPipe, OwnerPipe, ParseUUIDPipe&quot;]
+    RP[&quot;ReplayedError&lt;br/&gt;interceptor replaying a stored error&quot;]
+    N[&quot;NotFoundException&lt;br/&gt;unknown route&quot;]
+    U[&quot;anything else&lt;br/&gt;bug, DB down&quot;]
+  end
+  D --&gt;|code → ERROR_STATUS| T[&quot;toErrorResponse()&quot;]
+  B --&gt;|400 invalid_request + messages| T
+  RP --&gt;|stored status + body as is| T
+  N --&gt;|404 not_found| T
+  U --&gt;|500 internal_error, logged| T
+  T --&gt; J[&quot;status + error JSON&lt;br/&gt;code · message · details&quot;]
+  D -.-&gt;|&quot;status &lt; 500: stored under the key&quot;| K[(&quot;idempotency_keys&quot;)]
+</pre><p class="caption">Only <code>DomainError</code> with status &lt; 500 is stored. Validation errors and 500s roll back the key, so the client can retry.</p></div></section>
+<section class="part" id="reconciliation"><h2>Reconciliation</h2><p><code>GET /admin/reconciliation</code> recomputes everything from the immutable entries and compares it with the <code>balances</code> cache. If someone wrote a balance by hand, it shows up here.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  S[&quot;reconcile()&quot;] --&gt; Q1[&quot;SELECT sum(amount_cents) FROM entries&quot;]
+  S --&gt; Q2[&quot;per account:&lt;br/&gt;expected = (debit-normal ? 1 : −1) × sum(its entries)&quot;]
+  Q2 --&gt; CMP{&quot;balances.balance_cents&lt;br/&gt;= expected?&quot;}
+  CMP --&gt;|no| MM[&quot;add to mismatches:&lt;br/&gt;account_id, balance_cents, expected_cents&quot;]
+  Q1 --&gt; Z{&quot;total = 0?&quot;}
+  Z --&gt; OK[&quot;ok = total is 0 AND no mismatches&quot;]
+  CMP --&gt;|yes| OK
+  MM --&gt; OK
+</pre><p class="caption">The ledger spec deliberately corrupts <code>sys:bank</code> by 1 cent to check that reconciliation catches it.</p></div></section>
+<section class="part" id="pagination"><h2>Entry history pagination</h2><p><code>GET /wallets/:owner/entries</code> uses keyset pagination: instead of <code>OFFSET</code>, the client sends the last id it saw. It stays fast and stable even while new entries keep arriving, because entry ids only grow.</p><div class="figure"><pre class="mermaid">
+sequenceDiagram
+  participant C as Client
+  participant API as WalletsService.entries
+  participant PG as Postgres
+  C-&gt;&gt;API: GET /entries?limit=4
+  API-&gt;&gt;PG: WHERE owner = juan ORDER BY id DESC LIMIT 5
+  PG--&gt;&gt;API: 5 rows (ids 9..5)
+  API--&gt;&gt;C: entries 9..6 · next_cursor = 6
+  C-&gt;&gt;API: GET /entries?limit=4&amp;before=6
+  API-&gt;&gt;PG: WHERE owner = juan AND id &lt; 6 ORDER BY id DESC LIMIT 5
+  PG--&gt;&gt;API: 2 rows (ids 5..4)
+  API--&gt;&gt;C: entries 5..4 · next_cursor = null
+</pre><p class="caption">It asks for <code>limit + 1</code> rows: the extra row only tells it whether there is a next page.</p></div></section>
+<section class="part" id="tests"><h2>Test architecture</h2><p>Tests run against a real Postgres database (<code>wallet_test</code>), because locks and concurrency can't be faked with mocks. Each test file starts from an empty schema.</p><div class="figure"><pre class="mermaid">
+flowchart TB
+  VC[&quot;vitest.config.ts / vitest.config.e2e.ts&lt;br/&gt;DATABASE_URL = …/wallet_test&lt;br/&gt;fileParallelism: false&quot;] --&gt; SPEC
+  subgraph SPEC[Each spec file · beforeAll]
+    R[&quot;resetDatabase()&lt;br/&gt;refuses unless the DB name ends in _test&lt;br/&gt;DROP SCHEMA public CASCADE&quot;]
+    APP[&quot;Test.createTestingModule(AppModule)&lt;br/&gt;app.init() → migrations run&quot;]
+    R --&gt; APP
+  end
+  APP --&gt; U1[&quot;ledger.spec.ts&lt;br/&gt;calls LedgerService directly&quot;]
+  APP --&gt; U2[&quot;wallet.spec.ts&lt;br/&gt;calls services inside tx.run()&lt;br/&gt;fundedWallet() helper&quot;]
+  APP --&gt; E[&quot;api.e2e-spec.ts&lt;br/&gt;supertest over HTTP&lt;br/&gt;real interceptor, pipes, filter&quot;]
+  U1 --&gt; PG[(&quot;wallet_test&quot;)]
+  U2 --&gt; PG
+  E --&gt; PG
+</pre><p class="caption">Files run one at a time because they share one database; inside a file, the concurrency tests still run requests in parallel.</p></div></section>
+<section class="part" id="tests-manual">
+  <h2>Manual test cases</h2>
+  <p>Each case uses variables from the previous ones, so run them in order, in the same terminal. Every case was run against the server and gives the expected result. You need <code>jq</code> and <code>uuidgen</code>.</p>
+  <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>pnpm db:up
+pnpm start:dev</code></pre></div>
+  <div class="progress"><span id="prog-label">0 of 29 tested</span><div class="bar" aria-hidden="true"><i id="prog-bar"></i></div><button type="button" id="reset">Clear all</button></div>
+  <div class="group"><h3>Setup</h3><ol class="cases"><li class="case" id="case-P0">
+  <label class="check"><input type="checkbox" id="chk-P0" data-case="P0"><span class="cid">P0</span></label>
+  <div class="case-body">
+    <h4>Session variables</h4>
+    <p class="why">Owners get a random suffix so you can repeat the session without colliding with wallets you already created.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>B=http://localhost:3000
+A=ana-$RANDOM; M=maria-$RANDOM
+echo $A $M</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>Prints both owners, e.g. ana-1234 maria-5678.</p>
+  </div>
+</li><li class="case" id="case-P1">
+  <label class="check"><input type="checkbox" id="chk-P1" data-case="P1"><span class="cid">P1</span></label>
+  <div class="case-body">
+    <h4>Health</h4>
+    <p class="why">The app booted and applied the migration.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s $B/health</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>{&quot;ok&quot;:true}</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Happy path: deposit, hold and payout</h3><ol class="cases"><li class="case" id="case-F1">
+  <label class="check"><input type="checkbox" id="chk-F1" data-case="F1"><span class="cid">F1</span></label>
+  <div class="case-body">
+    <h4>Create a wallet</h4>
+    <p class="why">Creates 3 accounts: pending, available and held.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/wallets \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &quot;{\&quot;owner\&quot;:\&quot;$A\&quot;}&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>201 with all three balances at 0.</p>
+  </div>
+</li><li class="case" id="case-F2">
+  <label class="check"><input type="checkbox" id="chk-F2" data-case="F2"><span class="cid">F2</span></label>
+  <div class="case-body">
+    <h4>Start a $100 ACH deposit</h4>
+    <p class="why">Entry: debit sys:funding_receivable, credit user:pending.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>DEP=$(curl -s -X POST $B/wallets/$A/deposits \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &#x27;{&quot;amount_cents&quot;:10000}&#x27; | jq -r .id)
+curl -s $B/deposits/$DEP | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>Deposit with status &quot;pending&quot; and amount_cents 10000.</p>
+  </div>
+</li><li class="case" id="case-F3">
+  <label class="check"><input type="checkbox" id="chk-F3" data-case="F3"><span class="cid">F3</span></label>
+  <div class="case-body">
+    <h4>Balance with the deposit pending</h4>
+    <p class="why">The money is visible but not spendable yet.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s $B/wallets/$A | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>pending_cents 10000, available_cents 0.</p>
+  </div>
+</li><li class="case" id="case-F4">
+  <label class="check"><input type="checkbox" id="chk-F4" data-case="F4"><span class="cid">F4</span></label>
+  <div class="case-body">
+    <h4>Hold against pending money</h4>
+    <p class="why">Invariant 7: a pending ACH is never spendable.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/wallets/$A/holds \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &#x27;{&quot;amount_cents&quot;:1000}&#x27;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>422 insufficient_funds, with balance_cents 0 in details.</p>
+  </div>
+</li><li class="case" id="case-F5">
+  <label class="check"><input type="checkbox" id="chk-F5" data-case="F5"><span class="cid">F5</span></label>
+  <div class="case-body">
+    <h4>Settle the deposit</h4>
+    <p class="why">4-line entry: pending → available, and funding_receivable → bank.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/deposits/$DEP/settle \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot;
+curl -s $B/wallets/$A | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>200 with status &quot;settled&quot;; then available_cents 10000 and pending_cents 0.</p>
+  </div>
+</li><li class="case" id="case-F6">
+  <label class="check"><input type="checkbox" id="chk-F6" data-case="F6"><span class="cid">F6</span></label>
+  <div class="case-body">
+    <h4>Duplicate webhook</h4>
+    <p class="why">Settling again, with a different key, is a no-op.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -o /dev/null -w &#x27;→ %{http_code}\n&#x27; -X POST $B/deposits/$DEP/settle \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot;
+curl -s $B/wallets/$A | jq .available_cents</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>200, and available_cents stays at 10000.</p>
+  </div>
+</li><li class="case" id="case-F7">
+  <label class="check"><input type="checkbox" id="chk-F7" data-case="F7"><span class="cid">F7</span></label>
+  <div class="case-body">
+    <h4>Hold $25 for a payout</h4>
+    <p class="why">Entry: debit user:available, credit user:held.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>HOLD=$(curl -s -X POST $B/wallets/$A/holds \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &#x27;{&quot;amount_cents&quot;:2500}&#x27; | jq -r .id)
+curl -s $B/wallets/$A | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>available_cents 7500, held_cents 2500.</p>
+  </div>
+</li><li class="case" id="case-F8">
+  <label class="check"><input type="checkbox" id="chk-F8" data-case="F8"><span class="cid">F8</span></label>
+  <div class="case-body">
+    <h4>Capture the hold</h4>
+    <p class="why">The payout went out: debit user:held, credit sys:payouts_out.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/holds/$HOLD/capture \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot;
+curl -s $B/wallets/$A | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>200 with status &quot;captured&quot;; then available_cents 7500 and held_cents 0.</p>
+  </div>
+</li><li class="case" id="case-F9">
+  <label class="check"><input type="checkbox" id="chk-F9" data-case="F9"><span class="cid">F9</span></label>
+  <div class="case-body">
+    <h4>Release a captured hold</h4>
+    <p class="why">A hold can&#x27;t go from captured to released.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/holds/$HOLD/release \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>409 hold_not_active.</p>
+  </div>
+</li><li class="case" id="case-F10">
+  <label class="check"><input type="checkbox" id="chk-F10" data-case="F10"><span class="cid">F10</span></label>
+  <div class="case-body">
+    <h4>Entry history</h4>
+    <p class="why">Every movement is a ledger line; effect_cents is the effect from the user&#x27;s point of view.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s &quot;$B/wallets/$A/entries?limit=3&quot; \
+  | jq &#x27;{entries: [.entries[] | {transaction_kind, account, effect_cents}], next_cursor}&#x27;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>3 lines, the first one hold_captured / held / -2500, and a numeric next_cursor to request the next page with ?before=.</p>
+  </div>
+</li><li class="case" id="case-F11">
+  <label class="check"><input type="checkbox" id="chk-F11" data-case="F11"><span class="cid">F11</span></label>
+  <div class="case-body">
+    <h4>Reconciliation</h4>
+    <p class="why">All entries sum to 0 and every balance matches its entries.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s $B/admin/reconciliation | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>{&quot;ok&quot;: true, &quot;system_sum_cents&quot;: 0, &quot;mismatches&quot;: []}</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Returned ACH</h3><ol class="cases"><li class="case" id="case-R1">
+  <label class="check"><input type="checkbox" id="chk-R1" data-case="R1"><span class="cid">R1</span></label>
+  <div class="case-body">
+    <h4>Return a pending deposit</h4>
+    <p class="why">A returned ACH only touches pending; available doesn&#x27;t move.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>DEP2=$(curl -s -X POST $B/wallets/$A/deposits \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &#x27;{&quot;amount_cents&quot;:3000}&#x27; | jq -r .id)
+curl -s -X POST $B/deposits/$DEP2/return -H &quot;Idempotency-Key: $(uuidgen)&quot; | jq .status
+curl -s $B/wallets/$A | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>&quot;returned&quot;; available_cents stays at 7500 and pending_cents at 0.</p>
+  </div>
+</li><li class="case" id="case-R2">
+  <label class="check"><input type="checkbox" id="chk-R2" data-case="R2"><span class="cid">R2</span></label>
+  <div class="case-body">
+    <h4>Settle a returned deposit</h4>
+    <p class="why">Invalid transition.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/deposits/$DEP2/settle \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>409 deposit_not_pending, with status &quot;returned&quot; in details.</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Expired holds</h3><ol class="cases"><li class="case" id="case-H1">
+  <label class="check"><input type="checkbox" id="chk-H1" data-case="H1"><span class="cid">H1</span></label>
+  <div class="case-body">
+    <h4>Hold with a 1-second TTL</h4>
+    <p class="why">An expired hold can&#x27;t be captured, but it can be released.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>H2=$(curl -s -X POST $B/wallets/$A/holds \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &#x27;{&quot;amount_cents&quot;:500,&quot;ttl_seconds&quot;:1}&#x27; | jq -r .id)
+sleep 2
+curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/holds/$H2/capture -H &quot;Idempotency-Key: $(uuidgen)&quot;
+curl -s -X POST $B/holds/$H2/release -H &quot;Idempotency-Key: $(uuidgen)&quot; | jq .status</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>Capture: 409 hold_expired. Release: &quot;released&quot;. available_cents goes back to 7500.</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Transfers</h3><ol class="cases"><li class="case" id="case-T1">
+  <label class="check"><input type="checkbox" id="chk-T1" data-case="T1"><span class="cid">T1</span></label>
+  <div class="case-body">
+    <h4>Transfer $10 to another wallet</h4>
+    <p class="why">Entry: debit A:available, credit M:available.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -o /dev/null -X POST $B/wallets -H &quot;Idempotency-Key: $(uuidgen)&quot; \
+  -H &#x27;content-type: application/json&#x27; -d &quot;{\&quot;owner\&quot;:\&quot;$M\&quot;}&quot;
+curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/transfers \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &quot;{\&quot;from\&quot;:\&quot;$A\&quot;,\&quot;to\&quot;:\&quot;$M\&quot;,\&quot;amount_cents\&quot;:1000}&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>201 with a transaction_id. A ends with 6500 and M with 1000.</p>
+  </div>
+</li><li class="case" id="case-T2">
+  <label class="check"><input type="checkbox" id="chk-T2" data-case="T2"><span class="cid">T2</span></label>
+  <div class="case-body">
+    <h4>Transfer more than available</h4>
+    <p class="why">No user account ever goes negative.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/transfers \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &quot;{\&quot;from\&quot;:\&quot;$A\&quot;,\&quot;to\&quot;:\&quot;$M\&quot;,\&quot;amount_cents\&quot;:999999}&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>422 insufficient_funds. Balances don&#x27;t change.</p>
+  </div>
+</li><li class="case" id="case-T3">
+  <label class="check"><input type="checkbox" id="chk-T3" data-case="T3"><span class="cid">T3</span></label>
+  <div class="case-body">
+    <h4>Transfer to the same wallet</h4>
+    <p class="why">Business rule.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/transfers \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+  -d &quot;{\&quot;from\&quot;:\&quot;$A\&quot;,\&quot;to\&quot;:\&quot;$A\&quot;,\&quot;amount_cents\&quot;:100}&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>400 invalid_request.</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Idempotency</h3><ol class="cases"><li class="case" id="case-I1">
+  <label class="check"><input type="checkbox" id="chk-I1" data-case="I1"><span class="cid">I1</span></label>
+  <div class="case-body">
+    <h4>Retry with the same key</h4>
+    <p class="why">Same response, no double effect.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>K=$(uuidgen)
+for i in 1 2; do
+  curl -s -i -X POST $B/transfers -H &quot;Idempotency-Key: $K&quot; \
+    -H &#x27;content-type: application/json&#x27; \
+    -d &quot;{\&quot;from\&quot;:\&quot;$A\&quot;,\&quot;to\&quot;:\&quot;$M\&quot;,\&quot;amount_cents\&quot;:100}&quot; \
+    | grep -iE &#x27;^HTTP|replayed|transaction_id&#x27;
+done
+curl -s $B/wallets/$A | jq .available_cents</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>201 twice with the same transaction_id; only the second has Idempotent-Replayed: true. A ends with 6400 (money moved once). The replayed body lists the same keys in a different order, because it is stored in a jsonb column; the content is identical.</p>
+  </div>
+</li><li class="case" id="case-I2">
+  <label class="check"><input type="checkbox" id="chk-I2" data-case="I2"><span class="cid">I2</span></label>
+  <div class="case-body">
+    <h4>Same key, different body</h4>
+    <p class="why">A key identifies exactly one operation.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/transfers -H &quot;Idempotency-Key: $K&quot; \
+  -H &#x27;content-type: application/json&#x27; \
+  -d &quot;{\&quot;from\&quot;:\&quot;$A\&quot;,\&quot;to\&quot;:\&quot;$M\&quot;,\&quot;amount_cents\&quot;:200}&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>422 idempotency_key_reused.</p>
+  </div>
+</li><li class="case" id="case-I3">
+  <label class="check"><input type="checkbox" id="chk-I3" data-case="I3"><span class="cid">I3</span></label>
+  <div class="case-body">
+    <h4>POST without Idempotency-Key</h4>
+    <p class="why">Every POST requires one.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -w &#x27;\n→ %{http_code}\n&#x27; -X POST $B/wallets \
+  -H &#x27;content-type: application/json&#x27; -d &#x27;{&quot;owner&quot;:&quot;no-key&quot;}&#x27;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>400 idempotency_key_required. The wallet is not created.</p>
+  </div>
+</li><li class="case" id="case-I4">
+  <label class="check"><input type="checkbox" id="chk-I4" data-case="I4"><span class="cid">I4</span></label>
+  <div class="case-body">
+    <h4>Business error retried</h4>
+    <p class="why">The error is stored under the key: a retry returns it again without re-running the handler.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>K2=$(uuidgen)
+for i in 1 2; do
+  curl -s -i -X POST $B/wallets/$A/holds -H &quot;Idempotency-Key: $K2&quot; \
+    -H &#x27;content-type: application/json&#x27; -d &#x27;{&quot;amount_cents&quot;:999999}&#x27; \
+    | grep -iE &#x27;^HTTP|replayed&#x27;
+done</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>422 twice; the second one with Idempotent-Replayed: true.</p>
+  </div>
+</li><li class="case" id="case-I5">
+  <label class="check"><input type="checkbox" id="chk-I5" data-case="I5"><span class="cid">I5</span></label>
+  <div class="case-body">
+    <h4>Two identical requests in parallel</h4>
+    <p class="why">The second one waits on the key&#x27;s lock and returns the first one&#x27;s response.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>K3=$(uuidgen)
+for i in 1 2; do
+  curl -s -X POST $B/wallets/$A/holds -H &quot;Idempotency-Key: $K3&quot; \
+    -H &#x27;content-type: application/json&#x27; -d &#x27;{&quot;amount_cents&quot;:100}&#x27; | jq -r .id &amp;
+done; wait
+curl -s $B/wallets/$A | jq &#x27;{available_cents, held_cents}&#x27;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>The same id twice. held_cents only goes up by 100 (to 100) and available_cents drops to 6300.</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Validation and errors</h3><ol class="cases"><li class="case" id="case-V1">
+  <label class="check"><input type="checkbox" id="chk-V1" data-case="V1"><span class="cid">V1</span></label>
+  <div class="case-body">
+    <h4>Invalid amounts</h4>
+    <p class="why">Only positive integer cents, sent as a number.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>for amt in 10.5 -100 0 &#x27;&quot;100&quot;&#x27; 1000000001; do
+  curl -s -o /dev/null -w &quot;$amt → %{http_code}\n&quot; -X POST $B/wallets/$A/deposits \
+    -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; \
+    -d &quot;{\&quot;amount_cents\&quot;:$amt}&quot;
+done</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>400 in all five cases.</p>
+  </div>
+</li><li class="case" id="case-V2">
+  <label class="check"><input type="checkbox" id="chk-V2" data-case="V2"><span class="cid">V2</span></label>
+  <div class="case-body">
+    <h4>Missing resources and malformed input</h4>
+    <p class="why">404 for what doesn&#x27;t exist, 400 for what is malformed.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s -o /dev/null -w &#x27;unknown wallet → %{http_code}\n&#x27; $B/wallets/nobody
+curl -s -o /dev/null -w &#x27;bad uuid → %{http_code}\n&#x27; $B/deposits/abc
+curl -s -o /dev/null -w &quot;duplicate wallet → %{http_code}\n&quot; -X POST $B/wallets \
+  -H &quot;Idempotency-Key: $(uuidgen)&quot; -H &#x27;content-type: application/json&#x27; -d &quot;{\&quot;owner\&quot;:\&quot;$A\&quot;}&quot;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>404, 400 and 409.</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Concurrency</h3><ol class="cases"><li class="case" id="case-C1">
+  <label class="check"><input type="checkbox" id="chk-C1" data-case="C1"><span class="cid">C1</span></label>
+  <div class="case-body">
+    <h4>20 parallel holds on $50</h4>
+    <p class="why">FOR UPDATE serializes the holds: exactly 5 get through.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>W=race-$RANDOM
+curl -s -o /dev/null -X POST $B/wallets -H &quot;Idempotency-Key: $(uuidgen)&quot; \
+  -H &#x27;content-type: application/json&#x27; -d &quot;{\&quot;owner\&quot;:\&quot;$W\&quot;}&quot;
+D=$(curl -s -X POST $B/wallets/$W/deposits -H &quot;Idempotency-Key: $(uuidgen)&quot; \
+  -H &#x27;content-type: application/json&#x27; -d &#x27;{&quot;amount_cents&quot;:5000}&#x27; | jq -r .id)
+curl -s -o /dev/null -X POST $B/deposits/$D/settle -H &quot;Idempotency-Key: $(uuidgen)&quot;
+seq 20 | xargs -P 20 -I{} curl -s -o /dev/null -w &#x27;%{http_code}\n&#x27; -X POST \
+  $B/wallets/$W/holds -H &quot;Idempotency-Key: $W-{}&quot; \
+  -H &#x27;content-type: application/json&#x27; -d &#x27;{&quot;amount_cents&quot;:1000}&#x27; | sort | uniq -c
+curl -s $B/wallets/$W | jq &#x27;{available_cents, held_cents}&#x27;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>5 × 201 and 15 × 422. available_cents 0, held_cents 5000.</p>
+  </div>
+</li></ol></div>
+<div class="group"><h3>Immutable ledger</h3><ol class="cases"><li class="case" id="case-L1">
+  <label class="check"><input type="checkbox" id="chk-L1" data-case="L1"><span class="cid">L1</span></label>
+  <div class="case-body">
+    <h4>Try to delete or edit the ledger</h4>
+    <p class="why">Database triggers: mistakes are fixed with reversal entries, never by editing.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>docker compose exec -T postgres psql -U wallet -d wallet -c &#x27;delete from entries&#x27;
+docker compose exec -T postgres psql -U wallet -d wallet -c &#x27;update journal_transactions set kind = kind&#x27;</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>Both fail with ledger_is_append_only.</p>
+  </div>
+</li><li class="case" id="case-L2">
+  <label class="check"><input type="checkbox" id="chk-L2" data-case="L2"><span class="cid">L2</span></label>
+  <div class="case-body">
+    <h4>Final reconciliation</h4>
+    <p class="why">After everything above, the ledger still balances.</p>
+    <div class="code"><button class="copy" type="button" aria-label="Copy command">Copy</button><pre><code>curl -s $B/admin/reconciliation | jq</code></pre></div>
+    <p class="exp"><span class="lbl">Expected</span>ok: true, system_sum_cents: 0, empty mismatches.</p>
+  </div>
+</li></ol></div>
+</section>
+</div>
+<script>
+(function () {
+  var KEY = 'wallet-ledger-cases-en';
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('input[data-case]'));
+  var done = {};
+  try { done = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { done = {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) {} }
+  function render() {
+    var n = 0;
+    boxes.forEach(function (b) {
+      var on = !!done[b.dataset.case];
+      b.checked = on;
+      b.closest('.case').classList.toggle('done', on);
+      if (on) n++;
+    });
+    document.getElementById('prog-label').textContent = n + ' of ' + boxes.length + ' tested';
+    document.getElementById('prog-bar').style.width = (100 * n / boxes.length) + '%';
+  }
+  boxes.forEach(function (b) {
+    b.addEventListener('change', function () { done[b.dataset.case] = b.checked; save(); render(); });
+  });
+  document.getElementById('reset').addEventListener('click', function () { done = {}; save(); render(); });
+  render();
+
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.parentElement.querySelector('code');
+      var text = code.textContent;
+      function ok() { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1400); }
+      function fallback() {
+        var r = document.createRange(); r.selectNodeContents(code);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        btn.textContent = 'Selected';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
+      }
+      try {
+        navigator.clipboard.writeText(text).then(ok, fallback);
+      } catch (e) { fallback(); }
+    });
+  });
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'default', securityLevel: 'strict' });
+</script>
+</body>
+</html>
