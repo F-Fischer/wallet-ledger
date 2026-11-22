@@ -63,6 +63,38 @@ solves, diagrams of how it works and commands to try it:
 - [Demo web page](docs/features/demo-web.md): wallets, deposits, holds and transfers in the browser,
   replay with the same `Idempotency-Key`, live reconciliation and a stress test.
 
+## Deploy to Vercel (free tier)
+
+The API and the demo page deploy as one Vercel project; Postgres comes from Neon through the Vercel
+Marketplace (free plan).
+
+1. In Vercel, **Add New → Project** and import this repository. Set **Application Preset** to
+   **NestJS**. Vercel may suggest Vite (it sees `vite`, which Vitest needs) and warn about a
+   configuration mismatch; ignore it, since the Vite preset would build a static site with no API.
+   Keep the default build and output settings.
+2. In the project, **Storage → Neon → Create** and connect it to the project. Check that
+   `DATABASE_URL` now appears under **Settings → Environment Variables** (the pooled connection
+   string is fine).
+3. Deploy and open the deployment URL to get the demo page. `vercel.json` sets the build command
+   to `pnpm build && pnpm db:migrate`, so migrations are applied during the build (environment
+   variables, including `DATABASE_URL`, are available there). On Vercel the app skips its usual
+   migrate-at-boot step.
+
+What makes it work on serverless:
+
+- Migrations run in the build, not in the function: Vercel only lets `functions.includeFiles`
+  target files under `api/`, so the NestJS function can't ship `migrations/`. `public/` is served by
+  Vercel's CDN (so `/` is the demo page).
+- `attachDatabasePool(pool)` (`@vercel/functions`) releases idle connections before a function
+  suspends. Outside Vercel it does nothing.
+- The migrator takes a transaction-scoped advisory lock in every migration transaction, so
+  concurrent cold starts apply each file once, and it works through a transaction-mode pooler
+  (Neon's pooled URL, PgBouncer). Every request is already one transaction, so nothing else depends
+  on session state.
+
+The demo is public: anyone can settle deposits (those endpoints stand in for bank webhooks) and run
+the stress test, and there is no rate limiting.
+
 ## Invariants
 
 1. Amounts are integer cents (`bigint`); the `pg` parser rejects values outside
