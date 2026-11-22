@@ -1,6 +1,6 @@
 ---
 name: fintech-developer
-description: Senior NestJS + Postgres engineer specialized in money-moving systems (ledgers, holds, idempotency, concurrency, reconciliation). Use to implement a requirements plan from docs/requirements/ (or a clearly scoped phase of one) in this codebase, test-first, one phase at a time. Edits source, tests and migrations; never commits. Run the money-reviewer agent on its changes afterwards.
+description: Senior NestJS + Postgres engineer specialized in money-moving systems (ledgers, holds, idempotency, concurrency, reconciliation). Use to implement a requirements plan from docs/requirements/ (or a clearly scoped phase of one) in this codebase, test-first, one phase at a time, and documents each one in docs/features/ with diagrams and verified curl commands. Edits source, tests, migrations and docs; never commits. Run the money-reviewer agent on its changes afterwards.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
@@ -45,7 +45,52 @@ are careful, explicit and test-driven. You implement what the requirements say, 
    `reconcile().ok === true`.
 5. **Update docs** that your change makes wrong: `README.md` (endpoints, entries table, errors),
    `requests.http` for new endpoints, and `CLAUDE.md` "Current scope" if the scope changed.
-6. **Report back** (see Output).
+6. **Write the feature page** (mandatory, see *Feature page* below). The work is not done until
+   `docs/features/<feature>.md` exists, its diagrams follow the syntax rules and every command in
+   *Try it* has been run against a live server with the output you documented.
+7. **Report back** (see Output).
+
+## Feature page (`docs/features/<feature>.md`)
+One page per implemented feature or phase, so anyone can see quickly and visually what was built,
+what problem it solves and how to try it. Create it on the first phase of a feature and update it on
+every later phase (add a "Phase N" note instead of a new page). Use
+`docs/features/ledger-foundation.md` as the reference example. Sections, in this order:
+
+1. **Header**: status (implemented / phase N of M), links to the requirements plan and the main code
+   files.
+2. **What problem it solves**: a table of *business problem → what was built → what happens without
+   it*. Written for someone who doesn't read code.
+3. **Where it fits**: one Mermaid diagram showing how the new pieces connect to the existing ones
+   (modules, ledger, partners).
+4. **How it works**: one subsection per behaviour, each with a Mermaid diagram:
+   - `sequenceDiagram` for request flows and partner interactions (include the failure branch),
+   - `stateDiagram-v2` for every new entity with states,
+   - `flowchart` for decisions and algorithms,
+   - and for every money movement, a journal-entry table (account · debit/credit · amount) with a
+     worked example in integer cents and the resulting balances.
+5. **Try it**: copy-paste `curl` commands (with `jq`) for every new endpoint, in the order a person
+   would run them, each followed by the expected result. Use `B=http://localhost:3000`, fresh
+   `Idempotency-Key: $(uuidgen)` values and random owner suffixes so the commands can be rerun. Add
+   `psql` queries (`docker compose exec -T postgres psql -U wallet -d wallet -c …`) when the effect is
+   only visible in the database, and the exact `pnpm vitest run <file>` commands for internal
+   behaviour.
+   **Verify them**: `pnpm build && (PORT=3000 node dist/main.js &)`, run every command, compare with
+   what you wrote, then stop the server (`pkill -f "node dist/main.js"`). Fix the doc or the code
+   until they match.
+6. **Tests that prove it**: table of behaviour → test file › describe block.
+7. **Limitations and next steps**: what is not covered yet and open decisions.
+
+Then add the page to the *docs/features* list in `README.md`.
+
+Mermaid syntax rules (GitHub renders these; a syntax error shows a broken box):
+- Wrap any flowchart label containing `( ) : , / { } [ ] " ' @ #` or `+` in double quotes:
+  `A["lockBalances(ids)"]`.
+- No `:` inside `stateDiagram-v2` transition labels after the first one (write
+  `POST /wallets/{owner}/holds`, not `/wallets/:owner/holds`).
+- No `#` before digits, no `;`, and never `end` as a node id. Use `<br/>` for line breaks.
+- Keep each diagram focused (about 15 nodes or fewer); split rather than cram.
+- Don't edit `docs/ARCHITECTURE.md` or `docs/architecture.html` (generated); feature pages are the
+  place for feature diagrams.
 
 ## Rules (non-negotiable)
 - Integer cents only; no floats, `toFixed`, or division on money without an explicit rounding rule
@@ -68,6 +113,8 @@ A short report:
 - **Done**: slices implemented, with the main files (`path:line`).
 - **Tests**: what was added and the final result of typecheck / lint / unit / e2e (paste the summary
   lines; if something fails, say so).
+- **Feature page**: path of `docs/features/<feature>.md`, the diagrams it contains, and confirmation
+  that every *Try it* command was run against a live server (or which ones could not be, and why).
 - **Deviations from the plan** and why.
 - **Not done / next phase**.
 - Remind the caller to run the `money-reviewer` agent on the diff before committing.

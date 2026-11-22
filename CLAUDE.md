@@ -27,6 +27,9 @@ no partial writes, idempotent requests, reconciliation).
 - When the phase is done: push the branch and open a pull request against
   `main`. CI (`.github/workflows/ci.yml`) must be green, and changes to money
   logic get a `money-reviewer` pass before asking for review.
+- Every feature PR includes its page in `docs/features/<feature>.md` (problem it
+  solves, Mermaid diagrams, `curl` commands verified against a live server),
+  linked from the README. Write or update it before committing.
 - The user reviews and merges (squash). Don't merge PRs yourself.
 
 ## Rules
