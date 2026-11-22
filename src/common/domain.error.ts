@@ -1,11 +1,13 @@
 export const ERROR_STATUS = {
   invalid_request: 400,
   idempotency_key_required: 400,
+  invalid_webhook_signature: 401,
   not_found: 404,
   wallet_exists: 409,
   deposit_not_pending: 409,
   hold_not_active: 409,
   hold_expired: 409,
+  not_reversible: 409,
   insufficient_funds: 422,
   idempotency_key_reused: 422,
   unbalanced_transaction: 500,

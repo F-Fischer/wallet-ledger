@@ -18,6 +18,12 @@ no partial writes, idempotent requests, reconciliation).
   in `tx.run()`, POSTs run inside the `IdempotencyInterceptor` transaction.
 - Wallet = 3 accounts per owner (`pending`, `available`, `held`). Deposits
   (ACH), holds, transfers, `/admin/reconciliation`. See README for the API.
+- Ledger foundation (`docs/requirements/00-ledger-foundation.md`): lazy
+  `user:<owner>:receivable` (`ensureReceivable`, `owed_cents`),
+  `LedgerService.lockBalances` / `reverseTransaction` / `lockJournal` (lock order:
+  `ensureReceivable` → `lockJournal` → balance rows),
+  `@Idempotent({ keyFrom })`, HMAC webhook guards (`src/webhooks/signature.ts`).
+  No partner webhook endpoints yet.
 
 ## Git workflow
 - Never commit or push to `main`. Every change goes on its own branch
@@ -27,6 +33,9 @@ no partial writes, idempotent requests, reconciliation).
 - When the phase is done: push the branch and open a pull request against
   `main`. CI (`.github/workflows/ci.yml`) must be green, and changes to money
   logic get a `money-reviewer` pass before asking for review.
+- Every feature PR includes its page in `docs/features/<feature>.md` (problem it
+  solves, Mermaid diagrams, `curl` commands verified against a live server),
+  linked from the README. Write or update it before committing.
 - The user reviews and merges (squash). Don't merge PRs yourself.
 
 ## Rules

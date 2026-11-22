@@ -29,6 +29,24 @@ and runs a stress test from the browser. It is one static file (`public/index.ht
 `src/demo/demo.controller.ts`) that only uses the public API. See
 [`docs/features/demo-web.md`](docs/features/demo-web.md).
 
+### Load simulation
+
+`scripts/load.ts` hammers a running API with concurrent, conflicting requests and then checks
+that no money was lost or created. It has no dependencies (Node 22.18+ runs the `.ts` file directly).
+
+```bash
+pnpm start:dev                                   # in another terminal
+pnpm load --requests 2000 --concurrency 100      # flags: --url --wallets --start-cents --max-amount-cents --seed
+```
+
+It funds a few wallets, then mixes transfers between them in both directions (lock contention,
+overdrafts), holds that are released or captured, and the same request sent twice in parallel with
+one `Idempotency-Key`. It exits non-zero unless all of these hold: no 5xx, no negative balance,
+wallet totals + captured = funded, every duplicate pair got the same response, and
+`/admin/reconciliation` is ok. The JSON report includes p50/p95/p99 latency per operation and a
+count per outcome (`201`, `422 insufficient_funds`, ...). `test/load.e2e-spec.ts` runs a small
+version in CI.
+
 Diagrams (architecture, request lifecycle, ledger algorithm, state machines, idempotency,
 concurrency, data model) and manual test cases live in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). An interactive version is in
@@ -36,6 +54,12 @@ concurrency, data model) and manual test cases live in
 
 Feature requirements live in [`docs/requirements/`](docs/requirements/): the shared ledger foundation,
 FX remittances (USD → MXN) and debit card issuing.
+
+Each implemented feature has a page in [`docs/features/`](docs/features/) with the problem it
+solves, diagrams of how it works and commands to try it:
+
+- [Ledger foundation](docs/features/ledger-foundation.md): receivable, reversals, lock contract,
+  partner webhook idempotency and signatures.
 
 ## Deploy to Vercel (free tier)
 
@@ -81,8 +105,19 @@ the stress test, and there is no rate limiting.
 6. Exactly once per `Idempotency-Key`: key, response and ledger entries in one transaction.
 7. A pending ACH is never spendable; a returned ACH only touches `pending`.
 
-Convention: `amount_cents > 0` is a **debit**, `< 0` is a **credit**. User accounts are
-credit-normal (money the platform owes the user).
+Convention: `amount_cents > 0` is a **debit**, `< 0` is a **credit**. User accounts
+(`pending`, `available`, `held`) are credit-normal (money the platform owes the user). The exception is
+`user:<owner>:receivable` (debit-normal, never negative): what the user owes the platform. It is created
+lazily by `WalletsService.ensureReceivable` inside the transaction that first needs it, never with
+the wallet.
+
+Ledger building blocks for features (see `docs/requirements/00-ledger-foundation.md`):
+`LedgerService.lockBalances(ids)` locks balance rows in the same order as `postTransaction` and
+returns fresh balances (e.g. to split a debit between `available` and `receivable`);
+`LedgerService.reverseTransaction(key)` posts the exact negation under `<key>:reversal`
+(kind `<kind>_reversal`; a second call is a no-op), serialised with partial corrections by
+`LedgerService.lockJournal(key)`. Lock order in a transaction: `ensureReceivable` → `lockJournal` →
+balance rows.
 
 ## Journal entries
 
@@ -95,15 +130,20 @@ credit-normal (money the platform owes the user).
 | Hold captured | `user:held` | `sys:payouts_out` | `hold:<id>:captured` |
 | Hold released | `user:held` | `user:available` | `hold:<id>:released` |
 | Transfer | `userA:available` | `userB:available` | `transfer:<Idempotency-Key>` |
+| Reversal of any transaction | original credits | original debits | `<originalKey>:reversal` |
 
 ## Endpoints
 
-Every `POST` requires the `Idempotency-Key` header (max 255 characters).
+Every `POST` requires the `Idempotency-Key` header (max 255 characters). Partner webhooks
+(none yet) take the key from the partner's event id instead, via
+`@Idempotent({ keyFrom: (req) => ... })`, and verify an HMAC signature in a guard that runs
+before the idempotency interceptor (`src/webhooks/signature.ts`; the app is created with
+`rawBody: true`).
 
 | Method | Path | Body | Response |
 |---|---|---|---|
 | POST | `/wallets` | `{ owner }` | 201 · wallet (409 if it exists) |
-| GET | `/wallets/:owner` | | `{ owner, currency, available_cents, pending_cents, held_cents }` |
+| GET | `/wallets/:owner` | | `{ owner, currency, available_cents, pending_cents, held_cents, owed_cents }` (`owed_cents` = receivable, 0 if none) |
 | GET | `/wallets/:owner/entries?limit=20&before=<id>` | | `{ entries[], next_cursor }` |
 | POST | `/wallets/:owner/deposits` | `{ amount_cents }` | 201 · `pending` deposit |
 | GET | `/deposits/:id` | | deposit |
@@ -122,8 +162,9 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`.
 | Code | Status |
 |---|---|
 | `invalid_request`, `idempotency_key_required` | 400 |
+| `invalid_webhook_signature` | 401 |
 | `not_found` | 404 |
-| `wallet_exists`, `deposit_not_pending`, `hold_not_active`, `hold_expired` | 409 |
+| `wallet_exists`, `deposit_not_pending`, `hold_not_active`, `hold_expired`, `not_reversible` | 409 |
 | `insufficient_funds`, `idempotency_key_reused` | 422 |
 | `unbalanced_transaction`, `internal_error` | 500 |
 
@@ -170,6 +211,20 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`.
 - A transfer retried with the same key moves money once; overdrawing changes nothing.
 - At the end of the suite `reconcile().ok` is `true`.
 
+**`test/foundation.spec.ts`**
+- Migration 002 applies after 001; the `receivable` kind is accepted, unknown kinds are rejected.
+- `lockBalances` returns current balances, `not_found` with the missing ids, and blocks a concurrent `postTransaction` on the same rows until commit.
+- `reverseTransaction` restores balances with the exact negation; reversing twice is a no-op; unknown key → `not_found`; reversing a credit already spent → `insufficient_funds` with nothing written.
+- The receivable is not created with the wallet; `ensureReceivable` twice creates one account; a split debit shows up as `owed_cents`; a rolled-back transaction leaves no receivable.
+- At the end of the suite `reconcile().ok` is `true`.
+
+**`test/signature.spec.ts`**
+- `verifyHmacSignature` accepts the hex HMAC-SHA256 of the exact bytes and rejects other bodies, secrets, missing/truncated/non-hex signatures, and a missing body or secret.
+
+**`test/webhooks.e2e-spec.ts`** (test-only webhook controller)
+- Valid signature → handler runs; invalid or missing signature → 401 `invalid_webhook_signature` and no `idempotency_keys` row; a later valid delivery with the same event id is processed normally.
+- `@Idempotent({ keyFrom })` replays by partner id; missing or too long id → 400; the `Idempotency-Key` header is ignored; the same id on two routes doesn't collide.
+
 **`test/api.e2e-spec.ts`**
 - Full flow over HTTP, including paginated history and reconciliation.
 - `POST` without `Idempotency-Key` → 400.
@@ -180,6 +235,7 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`.
 - `amount_cents` = `10.5`, `-100`, `0`, `"100"`, over the max, or `null` → 400 `invalid_request`.
 - A validation error doesn't consume the key.
 - Unknown fields, bad UUIDs and invalid owners → 400; missing resources → 404; duplicate wallet → 409.
+- `GET /wallets/:owner` shows `owed_cents` from the receivable.
 
 ## Out of scope
 
