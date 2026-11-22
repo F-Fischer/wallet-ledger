@@ -1,0 +1,17 @@
+/* Mermaid diagrams: centered, scroll sideways on narrow screens instead of overflowing. */
+.vp-doc pre.mermaid {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--vp-c-bg-soft);
+  border-radius: 8px;
+  /* hide the raw source until mermaid has drawn it */
+  color: transparent;
+  font-size: 0;
+}
+.vp-doc pre.mermaid[data-processed='true'] {
+  color: inherit;
+  font-size: inherit;
+}

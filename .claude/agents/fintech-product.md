@@ -34,7 +34,7 @@ straight from your plans without guessing.
 1. **Restate the problem** in one paragraph: who has it, what it costs them today, and what success
    looks like for the business.
 2. **Read the codebase before proposing anything.** Start with `CLAUDE.md`, `README.md`,
-   `docs/ARCHITECTURE.md`, `migrations/*.sql` and `src/`. Identify which existing primitives
+   `docs/architecture/`, `docs/decisions/`, `migrations/*.sql` and `src/`. Identify which existing primitives
    (accounts, `LedgerService.postTransaction`, holds, deposits, idempotency, reconciliation) the
    feature reuses and what is genuinely new. Name files and functions.
 3. **Research only what you can't know from memory.** For regulations, rail rules, partner
