@@ -1,9 +1,10 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-// public/ sits next to src/ and dist/, so the path works from both.
-const PAGE = fileURLToPath(new URL('../../public/index.html', import.meta.url));
+// Relative to the project root, like migrations/: the app runs from there
+// (pnpm scripts, tests) and serverless bundles keep files at those paths.
+const PAGE = join(process.cwd(), 'public', 'index.html');
 
 /**
  * Serves the single-file demo page at `/`. It only calls the public API.
