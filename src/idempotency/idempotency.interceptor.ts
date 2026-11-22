@@ -13,7 +13,7 @@ import { Observable, lastValueFrom, of } from 'rxjs';
 import { DomainError, ReplayedError } from '../common/domain.error.js';
 import { toErrorResponse } from '../common/domain-exception.filter.js';
 import { TransactionHost } from '../database/transaction-host.js';
-import { IDEMPOTENT } from './idempotent.decorator.js';
+import { IDEMPOTENT, IdempotentOptions, headerIdempotencyKey } from './idempotent.decorator.js';
 
 type Outcome =
   | { kind: 'ok'; body: unknown }
@@ -36,17 +36,21 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
     const handler = context.getHandler();
-    if (!this.reflector.get<boolean>(IDEMPOTENT, handler)) return next.handle();
+    const options = this.reflector.get<IdempotentOptions | undefined>(IDEMPOTENT, handler);
+    if (!options) return next.handle();
 
     const http = context.switchToHttp();
     const req = http.getRequest<Request>();
     const res = http.getResponse<Response>();
 
-    const key = req.header('idempotency-key');
-    if (!key || key.length > 255) {
+    const keyFrom = options.keyFrom ?? headerIdempotencyKey;
+    const key: unknown = keyFrom(req);
+    if (typeof key !== 'string' || key.length === 0 || key.length > 255) {
       throw new DomainError(
         'idempotency_key_required',
-        'Idempotency-Key header is required (max 255 chars)',
+        options.keyFrom
+          ? 'idempotency key (partner event id) is required (max 255 chars)'
+          : 'Idempotency-Key header is required (max 255 chars)',
       );
     }
     const route = `${req.method} ${(req.route as { path?: string } | undefined)?.path ?? req.path}`;

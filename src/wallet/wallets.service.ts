@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DomainError } from '../common/domain.error.js';
 import { TransactionHost } from '../database/transaction-host.js';
-import { USER_ACCOUNT_KINDS, UserAccountKind, acct } from './accounts.js';
+import { UserAccountKind, WALLET_ACCOUNT_KINDS, acct } from './accounts.js';
 
 export interface WalletView {
   owner: string;
@@ -9,6 +9,8 @@ export interface WalletView {
   available_cents: number;
   pending_cents: number;
   held_cents: number;
+  /** What the user owes the platform (receivable balance); 0 if it was never needed. */
+  owed_cents: number;
 }
 
 export interface EntryView {
@@ -33,7 +35,7 @@ export class WalletsService {
        select a.id, $1, a.kind, 'credit', false
          from unnest($2::text[], $3::text[]) as a(id, kind)
        on conflict (id) do nothing`,
-      [owner, USER_ACCOUNT_KINDS.map((k) => acct(owner, k)), USER_ACCOUNT_KINDS],
+      [owner, WALLET_ACCOUNT_KINDS.map((k) => acct(owner, k)), WALLET_ACCOUNT_KINDS],
     );
     if (inserted.rowCount === 0) {
       throw new DomainError('wallet_exists', `wallet ${owner} already exists`);
@@ -65,7 +67,43 @@ export class WalletsService {
       available_cents: by.available ?? 0,
       pending_cents: by.pending ?? 0,
       held_cents: by.held ?? 0,
+      owed_cents: by.receivable ?? 0,
     };
+  }
+
+  /**
+   * Creates `user:<owner>:receivable` (debit-normal, never negative) and its
+   * balance row inside the current transaction if it doesn't exist yet.
+   * Returns the account id.
+   *
+   * Call it **first** in the transaction, before `lockJournal`, `lockBalances`
+   * or `postTransaction`: a first-time insert holds a lock that a concurrent
+   * creator waits on, so taking it after other ledger locks can deadlock.
+   * Calling it later throws.
+   */
+  async ensureReceivable(owner: string): Promise<string> {
+    const db = this.tx.db;
+    if (this.tx.balanceLocks.size > 0 || this.tx.journalLocks.size > 0) {
+      throw new Error(
+        'lock order violation: ensureReceivable must run before any other ledger lock in the transaction',
+      );
+    }
+    const exists = await db.query('select 1 from accounts where id = $1', [
+      acct(owner, 'available'),
+    ]);
+    if (exists.rowCount === 0) throw new DomainError('not_found', `wallet ${owner} not found`);
+    const id = acct(owner, 'receivable');
+    await db.query(
+      `insert into accounts (id, owner_id, kind, normal_side, allow_negative)
+       values ($1, $2, 'receivable', 'debit', false)
+       on conflict (id) do nothing`,
+      [id, owner],
+    );
+    await db.query(
+      'insert into balances (account_id) values ($1) on conflict (account_id) do nothing',
+      [id],
+    );
+    return id;
   }
 
   async entries(

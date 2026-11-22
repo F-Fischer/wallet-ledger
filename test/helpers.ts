@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ModuleMetadata } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import pg from 'pg';
 import { AppModule } from '../src/app.module.js';
@@ -36,11 +36,19 @@ export async function resetDatabase(): Promise<void> {
   }
 }
 
-/** Clean database + migrations (run by the app on init). */
-export async function createTestContext(): Promise<TestContext> {
+/**
+ * Clean database + migrations (run by the app on init). `imports` adds
+ * test-only modules (e.g. a fake webhook controller) next to AppModule.
+ * `rawBody: true` matches src/main.ts so webhook signatures verify the same way.
+ */
+export async function createTestContext(
+  options: { imports?: ModuleMetadata['imports'] } = {},
+): Promise<TestContext> {
   await resetDatabase();
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication({ logger: ['error'] });
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule, ...(options.imports ?? [])],
+  }).compile();
+  const app = moduleRef.createNestApplication({ logger: ['error'], rawBody: true });
   await app.init();
   return {
     app,
