@@ -23,6 +23,11 @@ describe('API (e2e)', () => {
     await http().get('/health').expect(200, { ok: true });
   });
 
+  it('GET / serves the demo page', async () => {
+    const res = await http().get('/').expect(200).expect('content-type', /text\/html/);
+    expect(res.text).toContain('<title>Wallet Ledger</title>');
+  });
+
   it('full flow: wallet -> deposit -> settle -> hold -> capture -> history -> reconciliation', async () => {
     const created = await post('/wallets', { owner: 'Juan' }).expect(201);
     expect(created.body).toEqual({

@@ -22,6 +22,13 @@ pnpm test:all
 
 `requests.http` has the full flow for manual testing (WebStorm / VS Code REST Client).
 
+**Demo page:** open http://localhost:3000/ after `pnpm start:dev`. It creates wallets, makes deposits
+(settle / return), holds (capture / release) and transfers, shows the ledger entries each one wrote,
+logs every HTTP call with a *Replay* button that re-sends a `POST` with the same `Idempotency-Key`,
+and runs a stress test from the browser. It is one static file (`public/index.html`, served by
+`src/demo/demo.controller.ts`) that only uses the public API. See
+[`docs/features/demo-web.md`](docs/features/demo-web.md).
+
 ### Load simulation
 
 `scripts/load.ts` hammers a running API with concurrent, conflicting requests and then checks
@@ -53,6 +60,8 @@ solves, diagrams of how it works and commands to try it:
 
 - [Ledger foundation](docs/features/ledger-foundation.md): receivable, reversals, lock contract,
   partner webhook idempotency and signatures.
+- [Demo web page](docs/features/demo-web.md): wallets, deposits, holds and transfers in the browser,
+  replay with the same `Idempotency-Key`, live reconciliation and a stress test.
 
 ## Invariants
 
