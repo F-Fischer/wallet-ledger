@@ -14,7 +14,7 @@ describe('MigratorService (Postgres)', () => {
   it('several instances booting at once apply each migration exactly once', async () => {
     // e.g. serverless cold starts: separate migrators, separate connections
     const migrators = Array.from({ length: 4 }, () => new MigratorService(pool));
-    await Promise.all(migrators.map((m) => m.onModuleInit()));
+    await Promise.all(migrators.map((m) => m.run()));
 
     const { rows } = await pool.query<{ name: string; n: number }>(
       'select name, count(*)::int as n from schema_migrations group by name order by name',
@@ -27,9 +27,22 @@ describe('MigratorService (Postgres)', () => {
 
   it('a second boot is a no-op', async () => {
     const before = await pool.query('select name, applied_at from schema_migrations order by name');
-    await new MigratorService(pool).onModuleInit();
+    await new MigratorService(pool).run();
     const after = await pool.query('select name, applied_at from schema_migrations order by name');
     expect(after.rows).toEqual(before.rows);
+  });
+
+  it('does not migrate at boot on Vercel (the build step does)', async () => {
+    await resetDatabase();
+    process.env.VERCEL = '1';
+    try {
+      await new MigratorService(pool).onModuleInit();
+    } finally {
+      delete process.env.VERCEL;
+    }
+    const { rows } = await pool.query(`select to_regclass('public.schema_migrations') as t`);
+    expect(rows[0].t).toBeNull();
+    await new MigratorService(pool).run(); // leave the schema for the next tests
   });
 
   // These run on a direct connection, where a session lock would pass too.

@@ -22,7 +22,21 @@ export class MigratorService implements OnModuleInit {
 
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
+  /**
+   * Runs at app boot, except on Vercel: there the build step applies
+   * migrations (`pnpm db:migrate`, see vercel.json) because functions don't
+   * ship the migrations/ folder.
+   */
   async onModuleInit() {
+    if (process.env.VERCEL) {
+      this.logger.log('on Vercel: migrations were applied by the build step');
+      return;
+    }
+    await this.run();
+  }
+
+  /** Applies every pending migration. Safe to call concurrently. */
+  async run() {
     const files = (await this.listMigrations()).filter((f) => f.endsWith('.sql')).sort();
 
     await this.locked(async (client) => {
@@ -50,8 +64,7 @@ export class MigratorService implements OnModuleInit {
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
       throw new Error(
-        `migrations directory not found at ${MIGRATIONS_DIR}; the app must run from the project ` +
-          'root, and on Vercel migrations/ must be bundled (vercel.json functions.includeFiles)',
+        `migrations directory not found at ${MIGRATIONS_DIR}; run from the project root`,
       );
     }
   }

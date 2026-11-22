@@ -49,13 +49,16 @@ Marketplace (free plan).
 2. In the project, **Storage → Neon → Create** and connect it to the project. Check that
    `DATABASE_URL` now appears under **Settings → Environment Variables** (the pooled connection
    string is fine).
-3. Deploy and open the deployment URL to get the demo page. Each new function instance checks
-   for pending migrations when it boots (under a lock, so only the first one applies them; the
-   rest just see they are done).
+3. Deploy and open the deployment URL to get the demo page. `vercel.json` sets the build command
+   to `pnpm build && pnpm db:migrate`, so migrations are applied during the build (environment
+   variables, including `DATABASE_URL`, are available there). On Vercel the app skips its usual
+   migrate-at-boot step.
 
 What makes it work on serverless:
 
-- `vercel.json` bundles `migrations/` and `public/` into the function; the app reads both at runtime.
+- Migrations run in the build, not in the function: Vercel only lets `functions.includeFiles`
+  target files under `api/`, so the NestJS function can't ship `migrations/`. `public/` is served by
+  Vercel's CDN (so `/` is the demo page).
 - `attachDatabasePool(pool)` (`@vercel/functions`) releases idle connections before a function
   suspends. Outside Vercel it does nothing.
 - The migrator takes a transaction-scoped advisory lock in every migration transaction, so

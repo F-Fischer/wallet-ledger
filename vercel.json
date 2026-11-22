@@ -1,8 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "src/main.ts": {
-      "includeFiles": "{migrations,public}/**"
-    }
-  }
+  "buildCommand": "pnpm build && pnpm db:migrate"
 }
