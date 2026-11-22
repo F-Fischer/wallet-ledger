@@ -24,6 +24,9 @@ no partial writes, idempotent requests, reconciliation).
   `ensureReceivable` → `lockJournal` → balance rows),
   `@Idempotent({ keyFrom })`, HMAC webhook guards (`src/webhooks/signature.ts`).
   No partner webhook endpoints yet.
+- Docs site: VitePress builds `docs/` into `public/` (gitignored) in `pnpm build`; the API serves it
+  (`src/site.ts`). `pnpm docs:dev` for writing. Architecture in `docs/architecture/`, ADRs in
+  `docs/decisions/`. E2E tests need `public/` built.
 
 ## Git workflow
 - Never commit or push to `main`. Every change goes on its own branch
@@ -35,7 +38,9 @@ no partial writes, idempotent requests, reconciliation).
   logic get a `money-reviewer` pass before asking for review.
 - Every feature PR includes its page in `docs/features/<feature>.md` (problem it
   solves, Mermaid diagrams, `curl` commands verified against a live server),
-  linked from the README. Write or update it before committing.
+  linked from the README and the site sidebar (`docs/.vitepress/config.ts`).
+  Write or update it before committing. A significant design choice gets an
+  ADR in `docs/decisions/`.
 - The user reviews and merges (squash). Don't merge PRs yourself.
 
 ## Rules

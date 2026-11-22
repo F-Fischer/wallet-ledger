@@ -6,8 +6,9 @@ The API is easy to test but hard to *see*. The demo page lets someone who has ne
 watch the ledger rules hold: money is never created or lost, a balance never goes negative, and a
 retried request never moves money twice.
 
-It is one static HTML file with no build step and no dependencies, served by the API at `/`. It only
-calls the public endpoints, so it adds no new behaviour to the backend.
+It is one static HTML file with no dependencies (`docs/public/demo-app.html`), embedded on the
+[docs site](./docs-site) at `/demo` and also reachable on its own at `/demo-app.html`. It only calls
+the public endpoints, so it adds no new behaviour to the backend.
 
 ## What's on the page
 
@@ -26,7 +27,7 @@ double-click can't move money twice.
 
 ```mermaid
 flowchart LR
-  B[Browser] -->|GET /| D[DemoController<br/>public/index.html]
+  B[Browser] -->|GET /demo-app.html| D["serveSite<br/>public/demo-app.html"]
   B -->|POST + Idempotency-Key| I[IdempotencyInterceptor]
   I --> S[Wallet services]
   S --> L[LedgerService.postTransaction]
@@ -38,12 +39,13 @@ flowchart LR
 
 ```bash
 pnpm db:up
-pnpm start:dev
-# open http://localhost:3000/
+pnpm build
+pnpm start:prod
+# open http://localhost:3000/demo
 ```
 
 ```bash
-curl -s http://localhost:3000/ | grep -o '<title>.*</title>'
+curl -s http://localhost:3000/demo-app.html | grep -o '<title>.*</title>'
 # <title>Wallet Ledger</title>
 ```
 
@@ -51,7 +53,7 @@ curl -s http://localhost:3000/ | grep -o '<title>.*</title>'
 
 | Behaviour | Test |
 |---|---|
-| `GET /` serves the page as HTML | `api.e2e-spec.ts` › GET / serves the demo page |
+| The page is served as HTML | `api.e2e-spec.ts` › serves the demo app as a static page |
 
 The page itself was checked end to end in Chromium (Playwright, not part of CI): create two wallets,
 deposit and settle, transfer, an overdraft (422 shown as a toast), hold and capture, replay of a

@@ -4,6 +4,9 @@ A USD wallet built on an immutable **double-entry ledger**: ACH deposits (pendin
 returned), holds (reserve → capture / release), transfers, idempotency on every `POST`, and a
 reconciliation endpoint.
 
+**Live site:** https://wallet-ledger-eta.vercel.app: the demo, the architecture with diagrams,
+and the [decision records](docs/decisions/) explaining why it's built this way.
+
 ## Getting started
 
 ```bash
@@ -22,11 +25,13 @@ pnpm test:all
 
 `requests.http` has the full flow for manual testing (WebStorm / VS Code REST Client).
 
-**Demo page:** open http://localhost:3000/ after `pnpm start:dev`. It creates wallets, makes deposits
-(settle / return), holds (capture / release) and transfers, shows the ledger entries each one wrote,
-logs every HTTP call with a *Replay* button that re-sends a `POST` with the same `Idempotency-Key`,
-and runs a stress test from the browser. It is one static file (`public/index.html`, served by
-`src/demo/demo.controller.ts`) that only uses the public API. See
+**Docs site and demo:** `pnpm build` also builds the docs site (VitePress, from `docs/`) into
+`public/`, which the API serves: open http://localhost:3000/ after `pnpm start:dev`. The demo at
+`/demo` creates wallets, makes deposits (settle / return), holds (capture / release) and transfers,
+shows the ledger entries each one wrote, logs every HTTP call with a *Replay* button that re-sends a
+`POST` with the same `Idempotency-Key`, and runs a stress test from the browser. `pnpm docs:dev`
+serves the docs with hot reload while writing. The e2e tests expect `public/` to be built. See
+[`docs/features/docs-site.md`](docs/features/docs-site.md) and
 [`docs/features/demo-web.md`](docs/features/demo-web.md).
 
 ### Load simulation
@@ -48,9 +53,9 @@ count per outcome (`201`, `422 insufficient_funds`, ...). `test/load.e2e-spec.ts
 version in CI.
 
 Diagrams (architecture, request lifecycle, ledger algorithm, state machines, idempotency,
-concurrency, data model) and manual test cases live in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). An interactive version is in
-`docs/architecture.html` (open it in a browser).
+concurrency, data model) and manual test cases live in [`docs/architecture/`](docs/architecture/).
+Why things are built the way they are (ledger model, integer cents, no ORM, locking, idempotency,
+serverless) is recorded as ADRs in [`docs/decisions/`](docs/decisions/). Both are on the live site.
 
 Feature requirements live in [`docs/requirements/`](docs/requirements/): the shared ledger foundation,
 FX remittances (USD → MXN) and debit card issuing.
@@ -62,10 +67,12 @@ solves, diagrams of how it works and commands to try it:
   partner webhook idempotency and signatures.
 - [Demo web page](docs/features/demo-web.md): wallets, deposits, holds and transfers in the browser,
   replay with the same `Idempotency-Key`, live reconciliation and a stress test.
+- [Docs site](docs/features/docs-site.md): VitePress site built from `docs/` and served by the API:
+  landing, demo, architecture, decision records, features and roadmap.
 
 ## Deploy to Vercel (free tier)
 
-The API and the demo page deploy as one Vercel project; Postgres comes from Neon through the Vercel
+The API and the docs site deploy as one Vercel project; Postgres comes from Neon through the Vercel
 Marketplace (free plan).
 
 1. In Vercel, **Add New → Project** and import this repository. Set **Application Preset** to
@@ -75,7 +82,7 @@ Marketplace (free plan).
 2. In the project, **Storage → Neon → Create** and connect it to the project. Check that
    `DATABASE_URL` now appears under **Settings → Environment Variables** (the pooled connection
    string is fine).
-3. Deploy and open the deployment URL to get the demo page. `vercel.json` sets the build command
+3. Deploy and open the deployment URL to get the docs site and the demo. `vercel.json` sets the build command
    to `pnpm build && pnpm db:migrate`, so migrations are applied during the build (environment
    variables, including `DATABASE_URL`, are available there). On Vercel the app skips its usual
    migrate-at-boot step.
@@ -83,8 +90,11 @@ Marketplace (free plan).
 What makes it work on serverless:
 
 - Migrations run in the build, not in the function: Vercel only lets `functions.includeFiles`
-  target files under `api/`, so the NestJS function can't ship `migrations/`. `public/` is served by
-  Vercel's CDN (so `/` is the demo page).
+  target files under `api/`, so the NestJS function can't ship `migrations/`. The built site in
+  `public/` is served by the function (`src/site.ts`).
+- `src/main.ts` must not `await bootstrap()` at the top level: on Vercel, `listen` resolves only
+  after the module has loaded, so awaiting it deadlocks the function's init
+  ([ADR 0008](docs/decisions/0008-serverless-on-vercel.md)).
 - `attachDatabasePool(pool)` (`@vercel/functions`) releases idle connections before a function
   suspends. Outside Vercel it does nothing.
 - The migrator takes a transaction-scoped advisory lock in every migration transaction, so

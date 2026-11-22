@@ -6,6 +6,16 @@ import { defineConfig } from 'vitepress';
 // `pnpm build`, not committed.
 const outDir = fileURLToPath(new URL('../../public', import.meta.url));
 
+// Heading ids the way GitHub makes them, so `file.md#some-heading` links in the
+// docs work both on GitHub and on the site (VitePress' default slugs differ,
+// e.g. it drops a leading "11." that GitHub keeps).
+const githubSlug = (text: string) =>
+  text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
+    .replace(/ /g, '-');
+
 export default defineConfig({
   title: 'Wallet Ledger',
   description:
@@ -13,6 +23,8 @@ export default defineConfig({
   lang: 'en-US',
   outDir,
   cleanUrls: true,
+  // Commands in the docs point at a local server (http://localhost:3000).
+  ignoreDeadLinks: 'localhostLinks',
   lastUpdated: false,
   // Docs that only make sense in the repo, not on the site.
   srcExclude: ['**/README.md'],
@@ -69,6 +81,7 @@ export default defineConfig({
           items: [
             { text: 'Ledger foundation', link: '/features/ledger-foundation' },
             { text: 'Demo web page', link: '/features/demo-web' },
+            { text: 'Docs site', link: '/features/docs-site' },
           ],
         },
       ],
@@ -97,6 +110,7 @@ export default defineConfig({
     },
   },
   markdown: {
+    anchor: { slugify: githubSlug },
     config(md) {
       // ```mermaid blocks become <pre class="mermaid">, drawn in the browser by
       // theme/index.ts. v-pre stops Vue from reading {{ }} in diagram labels.
