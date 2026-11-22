@@ -106,6 +106,18 @@ flowchart TB
 Rule for features: call `lockBalances` **once** with every account the transaction will touch,
 counterparties included. A feature that posts twice in one transaction locks the union first.
 
+The full order inside one transaction, enforced in code (each step throws if a later lock is
+already held):
+
+1. `ensureReceivable(owner)`: a first-time insert holds a lock other creators wait on.
+2. `lockJournal(key)` for reversals and corrections, in ascending key order.
+3. Balance rows, in ascending id order (`lockBalances`, then `postTransaction`). A `lockBalances`
+   after a post may only add ids that sort after what that post locked.
+
+Rows lock in byte order (`order by id collate "C"`), the same order as the JS checks. With the
+`postgres:16` default `en_US` collation, punctuation is ignored and `user:cx_y:…` would sort after
+`user:cxa:…`, so SQL and JS would disagree without it.
+
 ## 3. Reversing a transaction safely
 
 `reverseTransaction(key)` posts the exact negation under `<key>:reversal`. It refuses the cases that
@@ -138,7 +150,10 @@ Example: payout `X` of 1,000 from `user:x:available` to `sys:payouts_out`.
 
 If the user already spent the money, a full reversal fails; the feature then posts a **partial
 correction** with its own key, `metadata.corrects = "X"`, splitting the shortfall into the receivable.
-After that, `reverseTransaction("X")` is refused so nobody refunds twice.
+After that, `reverseTransaction("X")` is refused so nobody refunds twice, and a correction of an
+already reversed `X` is refused the same way. Both paths first take `lockJournal("X")`, so a reversal
+and a correction running at the same time are serialised: whichever commits first wins and the other
+gets `409 not_reversible`.
 
 ## 4. Partner webhooks: signature first, then idempotency
 
@@ -172,12 +187,12 @@ sequenceDiagram
 Why the order matters: if the interceptor ran first, a forged request carrying a real event id would
 store a 401 under that id, and the partner's genuine delivery would get that 401 replayed forever.
 
-## 5. Transfer keys scoped by sender (bug fix)
+## 5. Transfer keys stay `transfer:<Idempotency-Key>`
 
-| | Journal key | Two users sending with client key `abc` |
-|---|---|---|
-| Before | `transfer:abc` | The second transfer replayed the first one: no money moved |
-| After | `transfer:<from>:abc` | Two independent transfers |
+Two senders reusing one `Idempotency-Key` never collide in the ledger: the interceptor stores keys
+per route (`POST /transfers`) with a hash of the body, so the second sender gets `422
+idempotency_key_reused` before the service runs. The journal key `transfer:<Idempotency-Key>` stays
+as the durable backstop for retries.
 
 ## Try it
 
@@ -230,11 +245,11 @@ pnpm vitest run --config ./vitest.config.e2e.ts test/webhooks.e2e-spec.ts   # gu
 |---|---|
 | Migration 002 accepts `receivable`, rejects unknown kinds | `foundation.spec.ts` › migration 002 |
 | `lockBalances` blocks a concurrent post until commit | `foundation.spec.ts` › lockBalances |
-| Posting outside the locked set throws; locking the union allows several posts | `foundation.spec.ts` › lock contract |
-| Reversal is an exact negation; twice is a no-op; reversal of a reversal, corrected transactions and key clashes are refused | `foundation.spec.ts` › reverseTransaction |
-| Receivable is created lazily, once, even with two concurrent first calls; shows as `owed_cents` | `foundation.spec.ts` › per-user receivable |
+| Posting outside the locked set throws; locking the union allows several posts; lock order after posts, byte-order locking and journal-lock order are enforced | `foundation.spec.ts` › lock contract |
+| Reversal is an exact negation; twice is a no-op; reversal of a reversal, corrected transactions and key clashes are refused; correcting a reversed transaction is refused, also when racing | `foundation.spec.ts` › reverseTransaction |
+| Receivable is created lazily, once, even with two concurrent first calls; shows as `owed_cents`; must be created before other ledger locks | `foundation.spec.ts` › per-user receivable |
 | A forged webhook stores nothing; the real delivery with the same event id is processed | `webhooks.e2e-spec.ts` |
-| Two senders may use the same transfer key | `wallet.spec.ts` › transfers |
+| Two senders reusing one `Idempotency-Key` → the second gets 422, nothing moves | `api.e2e-spec.ts` |
 
 ## Limitations and next steps
 

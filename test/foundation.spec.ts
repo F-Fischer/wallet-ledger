@@ -223,6 +223,92 @@ describe('Ledger foundation (Postgres)', () => {
       expect(await balance(available)).toBe(300); // refunded once, not 1,300
     });
 
+    it('a reversed transaction cannot be corrected afterwards', async () => {
+      await fundedWallet(ctx, 'rev7', 1_000);
+      const available = acct('rev7', 'available');
+      await run(() =>
+        ctx.ledger.postTransaction({
+          idempotencyKey: 'rev7:payout',
+          kind: 'payout',
+          lines: debitCredit(available, SYS.payoutsOut, 1_000),
+        }),
+      );
+      await run(() => ctx.ledger.reverseTransaction('rev7:payout'));
+      expect(
+        await errorCode(() =>
+          run(() =>
+            ctx.ledger.postTransaction({
+              idempotencyKey: 'rev7:payout:refund1',
+              kind: 'payout_partial_refund',
+              lines: debitCredit(SYS.payoutsOut, available, 300),
+              metadata: { corrects: 'rev7:payout' },
+            }),
+          ),
+        ),
+      ).toBe('not_reversible');
+      expect(await balance(available)).toBe(1_000); // refunded once, not 1,300
+    });
+
+    it('a correction racing a reversal refunds only once', async () => {
+      await fundedWallet(ctx, 'rev8', 1_000);
+      const available = acct('rev8', 'available');
+      await run(() =>
+        ctx.ledger.postTransaction({
+          idempotencyKey: 'rev8:payout',
+          kind: 'payout',
+          lines: debitCredit(available, SYS.payoutsOut, 1_000),
+        }),
+      );
+      let commitCorrection!: () => void;
+      const gate = new Promise<void>((resolve) => (commitCorrection = resolve));
+      // The correction is posted but not committed yet when the reversal starts.
+      const correction = run(async () => {
+        await ctx.ledger.postTransaction({
+          idempotencyKey: 'rev8:payout:refund1',
+          kind: 'payout_partial_refund',
+          lines: debitCredit(SYS.payoutsOut, available, 300),
+          metadata: { corrects: 'rev8:payout' },
+        });
+        await gate;
+      });
+      await sleep(50);
+      const reversal = errorCode(() => run(() => ctx.ledger.reverseTransaction('rev8:payout')));
+      await sleep(50);
+      commitCorrection();
+      await correction;
+      expect(await reversal).toBe('not_reversible');
+      expect(await balance(available)).toBe(300);
+    });
+
+    it('a correction must name an existing journal by its key', async () => {
+      await fundedWallet(ctx, 'rev9', 1_000);
+      const available = acct('rev9', 'available');
+      await run(() =>
+        ctx.ledger.postTransaction({
+          idempotencyKey: '123',
+          kind: 'payout',
+          lines: debitCredit(available, SYS.payoutsOut, 1_000),
+        }),
+      );
+      await run(() => ctx.ledger.reverseTransaction('123'));
+      const correct = (corrects: unknown) =>
+        errorCode(() =>
+          run(() =>
+            ctx.ledger.postTransaction({
+              idempotencyKey: `rev9:refund:${String(corrects)}`,
+              kind: 'payout_partial_refund',
+              lines: debitCredit(SYS.payoutsOut, available, 300),
+              metadata: { corrects },
+            }),
+          ),
+        );
+      // A number would skip the guard while the reversal still matches it as text.
+      expect(await correct(123)).toBe('invalid_request');
+      expect(await correct('')).toBe('invalid_request');
+      expect(await correct('rev9:typo')).toBe('not_found');
+      expect(await balance(available)).toBe(1_000); // refunded once
+    });
+
     it('an unrelated journal using the <key>:reversal name is not mistaken for the reversal', async () => {
       await fundedWallet(ctx, 'rev6', 1_000);
       const available = acct('rev6', 'available');
@@ -297,6 +383,56 @@ describe('Ledger foundation (Postgres)', () => {
       await run(async () => {
         await ctx.ledger.lockBalances([SYS.payoutsOut]);
         await ctx.ledger.lockBalances([acct('lk3', 'available')]); // sorts after: allowed
+      });
+    });
+
+    it('lockBalances after a postTransaction may only add accounts that sort after its locks', async () => {
+      await fundedWallet(ctx, 'lk4b', 1_000);
+      await fundedWallet(ctx, 'lk4a', 1_000);
+      await expect(
+        run(async () => {
+          await ctx.ledger.postTransaction({
+            idempotencyKey: 'lk4b:payout',
+            kind: 'payout',
+            lines: debitCredit(acct('lk4b', 'available'), SYS.payoutsOut, 100),
+          });
+          // The post locked sys:payouts_out and user:lk4b:available;
+          // user:lk4a:available sorts before the latter -> out of order.
+          await ctx.ledger.lockBalances([acct('lk4a', 'available')]);
+        }),
+      ).rejects.toThrow(/lock order violation/);
+      expect(await balance(acct('lk4b', 'available'))).toBe(1_000);
+    });
+
+    it('locks rows in byte order, whatever the database collation', async () => {
+      // JS sorts "cx_y" before "cxa" ('_' < 'a'); en_US ignores punctuation and
+      // would sort "cxy" after "cxa". SQL and JS must agree on the lock order.
+      await fundedWallet(ctx, 'cxa', 0);
+      await fundedWallet(ctx, 'cx_y', 0);
+      const locked = await run(() =>
+        ctx.ledger.lockBalances([acct('cxa', 'available'), acct('cx_y', 'available')]),
+      );
+      expect([...locked.keys()]).toEqual([acct('cx_y', 'available'), acct('cxa', 'available')]);
+    });
+
+    it('lockJournal after a balance lock throws; journals lock in ascending order', async () => {
+      await fundedWallet(ctx, 'lk5', 1_000);
+      await expect(
+        run(async () => {
+          await ctx.ledger.lockBalances([acct('lk5', 'available')]);
+          await ctx.ledger.reverseTransaction('anything');
+        }),
+      ).rejects.toThrow(/lock order violation/);
+      await expect(
+        run(async () => {
+          await ctx.ledger.lockJournal('lk5:b');
+          await ctx.ledger.lockJournal('lk5:a');
+        }),
+      ).rejects.toThrow(/lock order violation/);
+      await run(async () => {
+        await ctx.ledger.lockJournal('lk5:a');
+        await ctx.ledger.lockJournal('lk5:b');
+        await ctx.ledger.lockJournal('lk5:a'); // already held: no-op
       });
     });
 
@@ -394,6 +530,31 @@ describe('Ledger foundation (Postgres)', () => {
         [acct('recv5', 'receivable')],
       );
       expect(rows[0].n).toBe(1);
+    });
+
+    it('ensureReceivable after another ledger lock throws (would risk a deadlock)', async () => {
+      await fundedWallet(ctx, 'recv6', 1_000);
+      await expect(
+        run(async () => {
+          await ctx.ledger.lockBalances([acct('recv6', 'available')]);
+          await ctx.wallets.ensureReceivable('recv6');
+        }),
+      ).rejects.toThrow(/lock order violation/);
+      await expect(
+        run(async () => {
+          await ctx.ledger.postTransaction({
+            idempotencyKey: 'recv6:payout',
+            kind: 'payout',
+            lines: debitCredit(acct('recv6', 'available'), SYS.payoutsOut, 100),
+          });
+          await ctx.wallets.ensureReceivable('recv6');
+        }),
+      ).rejects.toThrow(/lock order violation/);
+      const { rowCount } = await ctx.pool.query('select 1 from accounts where id = $1', [
+        acct('recv6', 'receivable'),
+      ]);
+      expect(rowCount).toBe(0);
+      expect(await balance(acct('recv6', 'available'))).toBe(1_000);
     });
 
     it('unknown wallet -> not_found', async () => {

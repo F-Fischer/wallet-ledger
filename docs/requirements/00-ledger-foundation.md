@@ -67,7 +67,13 @@ Mistakes and undo operations are new journal transactions, never edits.
   (§5). Reversal is only for exact undo.
 - **Partial corrections must set `metadata.corrects = <originalKey>`.** Once one exists, a full
   `reverseTransaction` of the original is refused (`409 not_reversible`); otherwise the money would
-  be refunded twice.
+  be refunded twice. The other order is refused too: a correction of an already reversed
+  transaction fails with `409 not_reversible`. `corrects` must be the key of an existing journal:
+  anything else is `invalid_request`, an unknown key is `not_found`.
+- **Reversals and corrections of the same original are serialised** by
+  `LedgerService.lockJournal(originalKey)` (a transaction-scoped advisory lock).
+  `reverseTransaction` and `postTransaction` with `metadata.corrects` take it themselves, before any
+  balance lock, so a reversal and a correction racing each other can't both pass their checks.
 - A reversal can't be reversed (`409 not_reversible`): re-apply the original under a new key instead.
 - On replay, the existing `<originalKey>:reversal` journal must have `metadata.reversal_of =
   originalKey`; if another journal happens to use that key, the call fails with `409 not_reversible`
@@ -80,8 +86,11 @@ user owes the platform. It lets the system accept a debit it cannot refuse (a ne
 ACH return) without making `available` negative.
 
 - **Created lazily**: `WalletsService.ensureReceivable(owner)` inserts the account and its balance row
-  (`on conflict do nothing`) inside the current transaction, right before the first entry that needs
-  it. Existing wallets need no data migration.
+  (`on conflict do nothing`) inside the current transaction. Existing wallets need no data migration.
+- **Call it first in the transaction**, before `lockJournal`, `lockBalances` or `postTransaction`.
+  A first-time insert holds a lock that a concurrent creator waits on; taken after other ledger locks
+  it can deadlock with a request that locks in the opposite order. Calling it later throws (a
+  programming error → 500).
 - **Wallet view**: `GET /wallets/:owner` adds `owed_cents` (the receivable balance, `0` if the
   account doesn't exist yet).
 - **Splitting a debit**: features never compute splits from stale reads. They call
@@ -97,8 +106,11 @@ ACH return) without making `available` negative.
 lockBalances(accountIds: string[]): Promise<Map<string, { balanceCents: number; normalSide: 'debit' | 'credit'; allowNegative: boolean }>>
 ```
 
-- Runs `select … from accounts join balances … where id = any($1) order by id for update of balances`
-  in the current transaction, the same query `postTransaction` uses.
+- Runs `select … from accounts join balances … where id = any($1) order by id collate "C" for update
+  of balances` in the current transaction, the same query `postTransaction` uses. `collate "C"`
+  (byte order) matches JS `.sort()` on these ASCII ids whatever the database collation; under
+  `en_US` (the `postgres:16` image default) punctuation is ignored and `user:a_c:…` / `user:ab:…`
+  would lock in the opposite order from the checks below.
 - Missing accounts → `not_found` with the missing ids.
 - `postTransaction` re-locks the same rows (a no-op inside the same transaction) and re-validates, so
   a wrong split is still rejected.
@@ -107,8 +119,11 @@ lockBalances(accountIds: string[]): Promise<Map<string, { balanceCents: number; 
   order. Locking `user:x:*` and then posting with `sys:payouts_out` would take a `sys:` lock after a
   `user:` lock, and a concurrent payout taking them the other way round deadlocks. So once
   `lockBalances` ran in a transaction, `postTransaction` throws (a programming error → 500) if it
-  touches an account that wasn't locked, and a second `lockBalances` may only add accounts that sort
-  after everything already locked.
+  touches an account that wasn't locked, and a later `lockBalances` may only add accounts that sort
+  after every balance row already locked in the transaction, whether an earlier `lockBalances` or an
+  earlier `postTransaction` locked it.
+- **Global lock order** in one transaction: `ensureReceivable` → `lockJournal` (ascending keys) →
+  balance rows (ascending ids). Each step throws if a later kind of lock is already held.
 - The same applies to features that post **more than once** in one transaction (e.g. FX "capture,
   then deliver" in one go): call `lockBalances` with the union of all their accounts first, and the
   check above then covers every post.
@@ -162,7 +177,12 @@ Feature-specific codes are listed in each feature plan.
 - Migration 002 applies on top of 001; `receivable` accounts can be created; other kinds still rejected.
 - `reverseTransaction`: balances return to their previous values; second call is a no-op; unknown key
   → `not_found`; reversing a credit the user already spent → `insufficient_funds`.
-- `ensureReceivable` twice creates one account; `GET /wallets/:owner` shows `owed_cents`.
+- A correction after a reversal → `not_reversible`; a correction racing a reversal refunds once.
+- `ensureReceivable` twice creates one account; `GET /wallets/:owner` shows `owed_cents`; calling it
+  after a balance lock throws.
+- `lockBalances` after a `postTransaction` may only add accounts that sort after its locks; rows lock
+  in byte order (`cx_y` before `cxa`) whatever the database collation; `lockJournal` after a balance
+  lock or out of key order throws.
 - `lockBalances` returns current balances and blocks a concurrent `postTransaction` on the same rows
   until commit; unknown id → `not_found`.
 - `@Idempotent({ keyFrom })`: replays by partner id; missing id → 400; default behaviour of existing

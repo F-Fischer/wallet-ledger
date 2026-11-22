@@ -59,6 +59,12 @@ export class LedgerService {
   /**
    * Posts a balanced journal transaction inside the current DB transaction.
    * Same idempotency key twice -> second call is a no-op (`replayed: true`).
+   *
+   * A partial correction (`metadata.corrects = <originalKey>`) first takes the
+   * journal lock on the original (see `lockJournal`) and is refused with
+   * `not_reversible` if the original was already reversed: that money already
+   * went back once. `corrects` must be the key of an existing journal
+   * (`invalid_request` / `not_found` otherwise), so the guard can't be skipped.
    */
   async postTransaction(input: PostTransactionInput): Promise<PostTransactionResult> {
     const { idempotencyKey, kind, lines, metadata = {} } = input;
@@ -72,6 +78,7 @@ export class LedgerService {
     }
     const ids = [...signed.keys()].sort();
     this.assertWithinExplicitLocks(ids);
+    const corrects = await this.lockCorrected(metadata);
 
     // 1. Claim the key. If it was already used, nothing else happens.
     const inserted = await db.query<{ id: string }>(
@@ -90,8 +97,22 @@ export class LedgerService {
     }
     const transactionId = inserted.rows[0].id;
 
+    if (corrects !== undefined) {
+      const reversed = await db.query(
+        `select 1 from journal_transactions
+          where idempotency_key = $1 and metadata->>'reversal_of' = $2`,
+        [`${corrects}:reversal`, corrects],
+      );
+      if ((reversed.rowCount ?? 0) > 0) {
+        throw new DomainError('not_reversible', 'transaction was already reversed', {
+          transaction: corrects,
+        });
+      }
+    }
+
     // 2. Lock balances in a fixed order (by account id) to avoid deadlocks.
     const locked = await this.lockRows(ids);
+    this.tx.addBalanceLocks(ids);
 
     // 3. Compute new balances; reject anything that would go negative.
     const nextBalances: number[] = [];
@@ -137,19 +158,19 @@ export class LedgerService {
    * transaction will touch (counterparties included). Locking a subset and then
    * posting to more accounts would take locks out of order and can deadlock,
    * so once `lockBalances` has been called, posting to an account it did not
-   * lock throws. A second `lockBalances` may only add accounts that sort after
-   * everything already locked.
+   * lock throws. New accounts must sort after every balance row already locked
+   * in this transaction, by an earlier `lockBalances` or `postTransaction`.
    */
   async lockBalances(accountIds: string[]): Promise<Map<string, LockedBalance>> {
     const ids = [...new Set(accountIds)].sort();
-    const held = this.tx.explicitLocks;
-    if (held && held.size > 0) {
+    const held = this.tx.balanceLocks;
+    if (held.size > 0) {
       const maxHeld = [...held].sort().at(-1)!;
       const outOfOrder = ids.filter((id) => !held.has(id) && id < maxHeld);
       if (outOfOrder.length > 0) {
         throw new Error(
           `lock order violation: lockBalances would lock ${outOfOrder.join(', ')} after ${maxHeld}; ` +
-            'lock every account in a single lockBalances call',
+            'lock every account in a single lockBalances call, before any postTransaction',
         );
       }
     }
@@ -164,16 +185,74 @@ export class LedgerService {
   }
 
   /**
+   * Serialises everything that moves money back for journal `key`: its
+   * reversal and its partial corrections (`pg_advisory_xact_lock`, held until
+   * commit). `reverseTransaction` and corrections call it themselves.
+   *
+   * Lock order: journal locks come before any balance lock, in ascending key
+   * order. Calling it after a balance row was locked in this transaction (by
+   * `lockBalances` or `postTransaction`) throws; to reverse or correct inside a
+   * larger operation, call `lockJournal` first.
+   */
+  async lockJournal(key: string): Promise<void> {
+    if (this.tx.journalLocks.has(key)) return;
+    const balances = this.tx.balanceLocks;
+    if (balances.size > 0) {
+      throw new Error(
+        `lock order violation: journal ${key} locked after balance rows ${[...balances].join(', ')}; ` +
+          'call lockJournal (or reverseTransaction) before any other ledger work in the transaction',
+      );
+    }
+    const maxHeld = [...this.tx.journalLocks].sort().at(-1);
+    if (maxHeld !== undefined && key < maxHeld) {
+      throw new Error(
+        `lock order violation: journal ${key} locked after ${maxHeld}; lock journals in ascending order`,
+      );
+    }
+    await this.tx.db.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [
+      `journal:${key}`,
+    ]);
+    this.tx.addJournalLock(key);
+  }
+
+  /**
+   * For a partial correction: validates `metadata.corrects`, takes its journal
+   * lock and returns the original key; `undefined` if this is no correction.
+   */
+  private async lockCorrected(metadata: Record<string, unknown>): Promise<string | undefined> {
+    if (!('corrects' in metadata) || metadata.corrects === undefined) return undefined;
+    const corrects = metadata.corrects;
+    if (typeof corrects !== 'string' || corrects === '') {
+      throw new DomainError('invalid_request', 'metadata.corrects must be a journal key', {
+        corrects,
+      });
+    }
+    await this.lockJournal(corrects);
+    const original = await this.tx.db.query(
+      'select 1 from journal_transactions where idempotency_key = $1',
+      [corrects],
+    );
+    if (original.rowCount === 0) {
+      throw new DomainError('not_found', `transaction ${corrects} not found`);
+    }
+    return corrects;
+  }
+
+  /**
    * Posts the exact negation of the transaction `originalKey` under the key
    * `<originalKey>:reversal` and kind `<originalKind>_reversal`. Reversing
    * twice is a no-op (`replayed: true`). Normal balance checks apply: if the
    * user already spent the money it fails with `insufficient_funds`.
+   *
+   * Takes the journal lock on `originalKey` first so it can't race a partial
+   * correction; see `lockJournal` for where it may be called.
    */
   async reverseTransaction(
     originalKey: string,
     metadata: Record<string, unknown> = {},
   ): Promise<PostTransactionResult> {
     const db = this.tx.db;
+    await this.lockJournal(originalKey);
     const original = await db.query<{ id: string; kind: string; reversal_of: string | null }>(
       `select id, kind, metadata->>'reversal_of' as reversal_of
          from journal_transactions where idempotency_key = $1`,
@@ -208,11 +287,14 @@ export class LedgerService {
       [id],
     );
     const reversalKey = `${originalKey}:reversal`;
+    // A reversal is not a correction of anything else.
+    const extra = { ...metadata };
+    delete extra.corrects;
     const result = await this.postTransaction({
       idempotencyKey: reversalKey,
       kind: `${kind}_reversal`,
       lines: entries.rows.map((e) => ({ accountId: e.account_id, amountCents: -e.amount_cents })),
-      metadata: { ...metadata, reversal_of: originalKey, reversed_transaction_id: id },
+      metadata: { ...extra, reversal_of: originalKey, reversed_transaction_id: id },
     });
     if (result.replayed) {
       // The key exists: make sure it really is this transaction's reversal and
@@ -245,14 +327,19 @@ export class LedgerService {
     }
   }
 
-  /** `ids` must be sorted and unique. Missing accounts -> not_found. */
+  /**
+   * `ids` must be sorted and unique. Missing accounts -> not_found.
+   * Rows are locked in byte order (`collate "C"`), the same order as JS
+   * `.sort()` on these ASCII ids, whatever the database's default collation
+   * (`en_US` ignores punctuation and would lock `a_c` and `ab` the other way).
+   */
   private async lockRows(ids: string[]): Promise<LockedAccount[]> {
     const locked = await this.tx.db.query<LockedAccount>(
       `select a.id, a.normal_side, a.allow_negative, b.balance_cents
          from accounts a
          join balances b on b.account_id = a.id
         where a.id = any($1::text[])
-        order by a.id
+        order by a.id collate "C"
         for update of b`,
       [ids],
     );

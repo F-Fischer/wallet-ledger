@@ -108,6 +108,22 @@ describe('API (e2e)', () => {
     await http().get('/wallets/reuse2').expect(404);
   });
 
+  it('two senders reusing one Idempotency-Key on /transfers -> the second gets 422', async () => {
+    await fund('share_a', 1_000);
+    await fund('share_b', 1_000);
+    await post('/wallets', { owner: 'share_c' }).expect(201);
+    const key = randomUUID();
+    await post('/transfers', { from: 'share_a', to: 'share_c', amount_cents: 100 }, key).expect(201);
+    const res = await post(
+      '/transfers',
+      { from: 'share_b', to: 'share_c', amount_cents: 200 },
+      key,
+    ).expect(422);
+    expect(res.body.error.code).toBe('idempotency_key_reused');
+    expect((await http().get('/wallets/share_b')).body).toMatchObject({ available_cents: 1_000 });
+    expect((await http().get('/wallets/share_c')).body).toMatchObject({ available_cents: 100 });
+  });
+
   it('two identical parallel requests with the same key -> same id, one effect', async () => {
     await fund('parallel', 5_000);
     const key = randomUUID();

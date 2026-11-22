@@ -58,7 +58,9 @@ Ledger building blocks for features (see `docs/requirements/00-ledger-foundation
 `LedgerService.lockBalances(ids)` locks balance rows in the same order as `postTransaction` and
 returns fresh balances (e.g. to split a debit between `available` and `receivable`);
 `LedgerService.reverseTransaction(key)` posts the exact negation under `<key>:reversal`
-(kind `<kind>_reversal`; a second call is a no-op).
+(kind `<kind>_reversal`; a second call is a no-op), serialised with partial corrections by
+`LedgerService.lockJournal(key)`. Lock order in a transaction: `ensureReceivable` → `lockJournal` →
+balance rows.
 
 ## Journal entries
 
@@ -70,7 +72,7 @@ returns fresh balances (e.g. to split a debit between `available` and `receivabl
 | Hold created | `user:available` | `user:held` | `hold:<id>:created` |
 | Hold captured | `user:held` | `sys:payouts_out` | `hold:<id>:captured` |
 | Hold released | `user:held` | `user:available` | `hold:<id>:released` |
-| Transfer | `userA:available` | `userB:available` | `transfer:<from>:<Idempotency-Key>` |
+| Transfer | `userA:available` | `userB:available` | `transfer:<Idempotency-Key>` |
 | Reversal of any transaction | original credits | original debits | `<originalKey>:reversal` |
 
 ## Endpoints

@@ -73,11 +73,21 @@ export class WalletsService {
 
   /**
    * Creates `user:<owner>:receivable` (debit-normal, never negative) and its
-   * balance row inside the current transaction if it doesn't exist yet. Call it
-   * right before the first entry that needs it. Returns the account id.
+   * balance row inside the current transaction if it doesn't exist yet.
+   * Returns the account id.
+   *
+   * Call it **first** in the transaction, before `lockJournal`, `lockBalances`
+   * or `postTransaction`: a first-time insert holds a lock that a concurrent
+   * creator waits on, so taking it after other ledger locks can deadlock.
+   * Calling it later throws.
    */
   async ensureReceivable(owner: string): Promise<string> {
     const db = this.tx.db;
+    if (this.tx.balanceLocks.size > 0 || this.tx.journalLocks.size > 0) {
+      throw new Error(
+        'lock order violation: ensureReceivable must run before any other ledger lock in the transaction',
+      );
+    }
     const exists = await db.query('select 1 from accounts where id = $1', [
       acct(owner, 'available'),
     ]);

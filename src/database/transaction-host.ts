@@ -7,6 +7,10 @@ interface TxContext {
   client: PoolClient;
   /** Accounts locked with LedgerService.lockBalances in this transaction. */
   explicitLocks?: Set<string>;
+  /** Every balance row locked in this transaction (lockBalances or postTransaction). */
+  balanceLocks: Set<string>;
+  /** Journal keys locked with LedgerService.lockJournal in this transaction. */
+  journalLocks: Set<string>;
 }
 
 @Injectable()
@@ -31,7 +35,29 @@ export class TransactionHost {
   addExplicitLocks(accountIds: Iterable<string>): void {
     const ctx = this.context();
     ctx.explicitLocks ??= new Set();
-    for (const id of accountIds) ctx.explicitLocks.add(id);
+    for (const id of accountIds) {
+      ctx.explicitLocks.add(id);
+      ctx.balanceLocks.add(id);
+    }
+  }
+
+  /** Every balance row locked so far in the current transaction. */
+  get balanceLocks(): ReadonlySet<string> {
+    return this.context().balanceLocks;
+  }
+
+  addBalanceLocks(accountIds: Iterable<string>): void {
+    const ctx = this.context();
+    for (const id of accountIds) ctx.balanceLocks.add(id);
+  }
+
+  /** Journal keys locked so far in the current transaction. */
+  get journalLocks(): ReadonlySet<string> {
+    return this.context().journalLocks;
+  }
+
+  addJournalLock(key: string): void {
+    this.context().journalLocks.add(key);
   }
 
   /** Opens a transaction; if one is already active, reuses it. */
@@ -41,7 +67,8 @@ export class TransactionHost {
     const client = await this.pool.connect();
     try {
       await client.query('begin');
-      const result = await this.als.run({ client }, fn);
+      const ctx: TxContext = { client, balanceLocks: new Set(), journalLocks: new Set() };
+      const result = await this.als.run(ctx, fn);
       await client.query('commit');
       return result;
     } catch (err) {

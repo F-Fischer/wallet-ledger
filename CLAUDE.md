@@ -20,7 +20,8 @@ no partial writes, idempotent requests, reconciliation).
   (ACH), holds, transfers, `/admin/reconciliation`. See README for the API.
 - Ledger foundation (`docs/requirements/00-ledger-foundation.md`): lazy
   `user:<owner>:receivable` (`ensureReceivable`, `owed_cents`),
-  `LedgerService.lockBalances` / `reverseTransaction`,
+  `LedgerService.lockBalances` / `reverseTransaction` / `lockJournal` (lock order:
+  `ensureReceivable` → `lockJournal` → balance rows),
   `@Idempotent({ keyFrom })`, HMAC webhook guards (`src/webhooks/signature.ts`).
   No partner webhook endpoints yet.
 
