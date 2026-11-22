@@ -122,7 +122,7 @@ sequenceDiagram
 
 *Migrations are tracked by file name. To change the schema, add a new `NNN_….sql`; never edit an applied file.*
 
-On Vercel, `onModuleInit` skips migrations: the build step runs `pnpm db:migrate` instead, because functions don't ship the `migrations/` folder. `main.ts` also doesn't `await bootstrap()` at the top level: on Vercel, `listen` resolves only after the entry module has finished loading, so awaiting it deadlocks the function's init.
+On Vercel, `onModuleInit` skips migrations: the build step runs `pnpm db:migrate` instead, because functions don't ship the `migrations/` folder. `main.ts` also doesn't `await bootstrap()` at the top level: on Vercel, `listen` resolves only after the entry module has finished loading, so awaiting it deadlocks the function's init (see [ADR 0008](/decisions/0008-serverless-on-vercel)).
 
 ## TransactionHost and AsyncLocalStorage
 
