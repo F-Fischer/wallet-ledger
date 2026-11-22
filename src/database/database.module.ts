@@ -6,6 +6,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { attachDatabasePool } from '@vercel/functions';
 import pg from 'pg';
 import { PG_POOL } from './database.constants.js';
 import { MigratorService } from './migrator.service.js';
@@ -35,10 +36,15 @@ class PoolCloser implements OnApplicationShutdown {
     {
       provide: PG_POOL,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        new pg.Pool({
+      useFactory: (config: ConfigService) => {
+        const pool = new pg.Pool({
           connectionString: config.getOrThrow<string>('DATABASE_URL'),
-        }),
+        });
+        // On Vercel, releases idle clients before the function suspends; a
+        // no-op anywhere else (it checks VERCEL_URL / VERCEL_REGION).
+        attachDatabasePool(pool);
+        return pool;
+      },
     },
     TransactionHost,
     MigratorService,

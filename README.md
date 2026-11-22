@@ -37,6 +37,32 @@ concurrency, data model) and manual test cases live in
 Feature requirements live in [`docs/requirements/`](docs/requirements/): the shared ledger foundation,
 FX remittances (USD → MXN) and debit card issuing.
 
+## Deploy to Vercel (free tier)
+
+The API and the demo page deploy as one Vercel project; Postgres comes from Neon through the Vercel
+Marketplace (free plan).
+
+1. In Vercel, **Add New → Project** and import this repository. NestJS is detected from
+   `src/main.ts`; keep the default build settings.
+2. In the project, **Storage → Neon → Create** and connect it to the project. Check that
+   `DATABASE_URL` now appears under **Settings → Environment Variables** (the pooled connection
+   string is fine).
+3. Deploy. Migrations apply on the first request after each deployment's cold start; open the
+   deployment URL to get the demo page.
+
+What makes it work on serverless:
+
+- `vercel.json` bundles `migrations/` and `public/` into the function; the app reads both at runtime.
+- `attachDatabasePool(pool)` (`@vercel/functions`) releases idle connections before a function
+  suspends. Outside Vercel it does nothing.
+- The migrator takes a transaction-scoped advisory lock in every migration transaction, so
+  concurrent cold starts apply each file once, and it works through a transaction-mode pooler
+  (Neon's pooled URL, PgBouncer). Every request is already one transaction, so nothing else depends
+  on session state.
+
+The demo is public: anyone can settle deposits (those endpoints stand in for bank webhooks) and run
+the stress test, and there is no rate limiting.
+
 ## Invariants
 
 1. Amounts are integer cents (`bigint`); the `pg` parser rejects values outside
