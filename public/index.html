@@ -136,6 +136,7 @@
         <label>Concurrency <input id="st-concurrency" class="amount" type="number" min="1" max="50" value="20"></label>
         <button id="st-run" class="primary">Run</button>
       </div>
+      <p class="hint">Browsers open about 6 connections per site over HTTP/1.1 (e.g. on localhost), so more than 6 concurrent requests queue in the browser; HTTP/2 hosts allow more.</p>
       <div class="progress"><div id="st-bar"></div></div>
       <div id="st-result"></div>
     </section>
@@ -303,6 +304,8 @@ async function refreshWallet(owner) {
   else if (r.status === 404) {          // e.g. the database was reset: forget it
     state.owners = state.owners.filter((o) => o !== owner);
     delete state.wallets[owner];
+    delete state.deposits[owner];
+    delete state.holds[owner];
     if (state.selected === owner) state.selected = state.owners[0] ?? null;
   }
 }
@@ -335,7 +338,8 @@ $('#create-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const owner = $('#owner-input').value.trim().toLowerCase();
   const r = await api('POST', '/wallets', { owner });
-  if (r.status !== 201) return toast(errorText(r));
+  // An existing wallet (e.g. created on another device) is opened instead.
+  if (r.status !== 201 && r.data?.error?.code !== 'wallet_exists') return toast(errorText(r));
   if (!state.owners.includes(owner)) state.owners.push(owner);
   state.selected = owner;
   $('#owner-input').value = `${['bob', 'carol', 'dave', 'erin'][state.owners.length % 4]}-${shortId()}`;
@@ -364,6 +368,34 @@ const FLOWS = {
   hold: 'Debit user:available · Credit user:held. Capture sends it to sys:payouts_out; release returns it to available.',
   transfer: 'Debit sender:available · Credit receiver:available, in one transaction, so it either fully happens or not at all.',
 };
+
+/**
+ * A form that moves money. It keeps one Idempotency-Key until the server
+ * answers, and ignores submits while a request is in flight, so a
+ * double-click can't move money twice. After any answer (success or a
+ * business error, which the server stores under the key) the next submit
+ * gets a fresh key; after a network error it retries with the same one.
+ */
+function moneyForm(send, ...children) {
+  let key = uuid();
+  let busy = false;
+  const form = el('form', { class: 'row', onsubmit: async (ev) => {
+    ev.preventDefault();
+    if (busy) return;
+    busy = true;
+    const button = form.querySelector('button[type=submit]');
+    const wasDisabled = button.disabled;
+    button.disabled = true;
+    try {
+      const r = await send(key);
+      if (r && r.status !== 0) key = uuid();
+    } finally {
+      busy = false;
+      button.disabled = wasDisabled;
+    }
+  } }, ...children);
+  return form;
+}
 
 function amountInput(id, placeholder = '0.00') {
   return el('input', { id, class: 'amount', type: 'text', inputmode: 'decimal', placeholder, 'aria-label': 'Amount in USD' });
@@ -409,43 +441,43 @@ function renderDetail() {
 function actionForm(owner) {
   if (state.tab === 'deposit') {
     const amount = amountInput('dep-amount', '100.00');
-    return el('form', { class: 'row', onsubmit: async (ev) => {
-      ev.preventDefault();
+    return moneyForm(async (key) => {
       const cents = parseDollars(amount.value);
       if (!cents) return toast('Enter an amount like 100 or 12.50');
-      const r = await api('POST', `/wallets/${owner}/deposits`, { amount_cents: cents });
-      if (r.status !== 201) return toast(errorText(r));
+      const r = await api('POST', `/wallets/${owner}/deposits`, { amount_cents: cents }, { key });
+      if (r.status !== 201) { toast(errorText(r)); return r; }
       (state.deposits[owner] ??= []).unshift(r.data);
       await refreshAll();
-    } }, el('span', {}, 'ACH deposit $'), amount, el('button', { class: 'primary', type: 'submit' }, 'Deposit'));
+      return r;
+    }, el('span', {}, 'ACH deposit $'), amount, el('button', { class: 'primary', type: 'submit' }, 'Deposit'));
   }
   if (state.tab === 'hold') {
     const amount = amountInput('hold-amount', '25.00');
     const ttl = el('select', { 'aria-label': 'Expires in' },
       el('option', { value: '60' }, '1 min'), el('option', { value: '600', selected: true }, '10 min'), el('option', { value: '3600' }, '1 hour'));
-    return el('form', { class: 'row', onsubmit: async (ev) => {
-      ev.preventDefault();
+    return moneyForm(async (key) => {
       const cents = parseDollars(amount.value);
       if (!cents) return toast('Enter an amount like 25 or 9.99');
-      const r = await api('POST', `/wallets/${owner}/holds`, { amount_cents: cents, ttl_seconds: Number(ttl.value) });
-      if (r.status !== 201) return toast(errorText(r));
+      const r = await api('POST', `/wallets/${owner}/holds`, { amount_cents: cents, ttl_seconds: Number(ttl.value) }, { key });
+      if (r.status !== 201) { toast(errorText(r)); return r; }
       (state.holds[owner] ??= []).unshift(r.data);
       await refreshAll();
-    } }, el('span', {}, 'Hold $'), amount, el('span', { class: 'muted' }, 'expires in'), ttl,
+      return r;
+    }, el('span', {}, 'Hold $'), amount, el('span', { class: 'muted' }, 'expires in'), ttl,
        el('button', { class: 'primary', type: 'submit' }, 'Place hold'));
   }
   const others = state.owners.filter((o) => o !== owner);
   const to = el('select', { 'aria-label': 'Recipient' }, ...others.map((o) => el('option', { value: o }, o)));
   const amount = amountInput('tr-amount', '10.00');
-  return el('form', { class: 'row', onsubmit: async (ev) => {
-    ev.preventDefault();
+  return moneyForm(async (key) => {
     if (!to.value) return toast('Create a second wallet to transfer to');
     const cents = parseDollars(amount.value);
     if (!cents) return toast('Enter an amount like 10 or 0.50');
-    const r = await api('POST', '/transfers', { from: owner, to: to.value, amount_cents: cents });
+    const r = await api('POST', '/transfers', { from: owner, to: to.value, amount_cents: cents }, { key });
     if (r.status !== 201) toast(errorText(r));
     await refreshAll();
-  } }, el('span', {}, 'Send $'), amount, el('span', { class: 'muted' }, 'to'),
+    return r;
+  }, el('span', {}, 'Send $'), amount, el('span', { class: 'muted' }, 'to'),
      others.length ? to : el('span', { class: 'muted' }, '(create another wallet)'),
      el('button', { class: 'primary', type: 'submit', disabled: others.length === 0 }, 'Transfer'));
 }
@@ -533,6 +565,17 @@ $('#st-run').addEventListener('click', async () => {
     button.disabled = false; return;
   }
 
+  try {
+    await stormAndCheck(owners, START, MAX, requests, concurrency, bar, out);
+  } catch (err) {
+    out.replaceChildren(el('p', { class: 'hint' }, `Stress test stopped: ${err}`));
+  } finally {
+    button.disabled = false;
+    refreshRecon();
+  }
+});
+
+async function stormAndCheck(owners, START, MAX, requests, concurrency, bar, out) {
   const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
   const amount = () => 1 + Math.floor(Math.random() * MAX);
   const pair = () => { const from = pick(owners); let to = pick(owners); while (to === from) to = pick(owners); return { from, to }; };
@@ -594,14 +637,16 @@ $('#st-run').addEventListener('click', async () => {
     el('ul', { class: 'checks' }, ...checks.map(([label, ok]) => el('li', {}, el('span', { class: ok ? 'plus' : 'minus' }, ok ? '✓ ' : '✗ '), label))),
     el('p', { class: 'badge ' + (checks.every(([, ok]) => ok) ? 'good' : 'bad') }, checks.every(([, ok]) => ok) ? 'All invariants held' : 'An invariant was broken'),
   );
-  button.disabled = false;
-  refreshRecon();
-});
+}
 
 // ---------- boot ----------
 renderLog();
 refreshAll();
-setInterval(refreshRecon, 10_000);
+// Reconciliation scans the whole ledger: poll only while the tab is visible.
+setInterval(() => { if (document.visibilityState === 'visible') refreshRecon(); }, 30_000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshRecon();
+});
 </script>
 </body>
 </html>
