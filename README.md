@@ -60,6 +60,8 @@ solves, diagrams of how it works and commands to try it:
 
 - [Ledger foundation](docs/features/ledger-foundation.md): receivable, reversals, lock contract,
   partner webhook idempotency and signatures.
+- [Demo web page](docs/features/demo-web.md): wallets, deposits, holds and transfers in the browser,
+  replay with the same `Idempotency-Key`, live reconciliation and a stress test.
 
 ## Deploy to Vercel (free tier)
 
