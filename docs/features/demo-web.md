@@ -16,11 +16,13 @@ calls the public endpoints, so it adds no new behaviour to the backend.
 | Wallets | Create wallets; each card shows the available balance |
 | Wallet | `available` / `pending` / `held`; deposit, hold and transfer forms; the journal lines each action writes; deposits (settle / return), holds (capture / release); the latest ledger entries |
 | HTTP log | Every call with status, latency and the response body. **Replay** re-sends a `POST` with the same `Idempotency-Key`: the response is marked `replayed` and no money moves |
-| Reconciliation badge | `GET /admin/reconciliation`, refreshed after every action and every 10 s |
+| Reconciliation badge | `GET /admin/reconciliation`, refreshed after every action, and every 30 s only while the tab is visible (it scans the whole ledger) |
 | Stress test | Same idea as `scripts/load.ts`, from the browser: 3 fresh wallets, concurrent conflicting transfers, holds and duplicate requests, then 5 invariant checks |
 
 Amounts are typed in dollars but parsed as text into integer cents (`"12.50"` → `1250`), so the page
-never does float arithmetic on money either.
+never does float arithmetic on money either. Each deposit, hold and transfer form keeps one
+`Idempotency-Key` until the server answers and ignores submits while a request is in flight, so a
+double-click can't move money twice.
 
 ```mermaid
 flowchart LR
