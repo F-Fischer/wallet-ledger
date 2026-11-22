@@ -22,7 +22,8 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:all": "vitest run && vitest run --config ./vitest.config.e2e.ts",
-    "db:up": "docker compose up -d --wait"
+    "db:up": "docker compose up -d --wait",
+    "load": "node scripts/load.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

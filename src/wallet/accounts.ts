@@ -4,8 +4,15 @@ export const SYS = {
   payoutsOut: 'sys:payouts_out', // payouts sent, pending settlement
 } as const;
 
-export type UserAccountKind = 'pending' | 'available' | 'held';
-export const USER_ACCOUNT_KINDS: UserAccountKind[] = ['pending', 'available', 'held'];
+export type UserAccountKind = 'pending' | 'available' | 'held' | 'receivable';
+export const USER_ACCOUNT_KINDS: UserAccountKind[] = ['pending', 'available', 'held', 'receivable'];
+
+/**
+ * Credit-normal accounts created together with the wallet. The `receivable`
+ * (debit-normal: what the user owes the platform) is created lazily by
+ * `WalletsService.ensureReceivable`.
+ */
+export const WALLET_ACCOUNT_KINDS: UserAccountKind[] = ['pending', 'available', 'held'];
 
 export const OWNER_PATTERN = /^[a-z0-9_-]{1,64}$/i;
 
