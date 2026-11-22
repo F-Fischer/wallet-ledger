@@ -22,6 +22,24 @@ pnpm test:all
 
 `requests.http` has the full flow for manual testing (WebStorm / VS Code REST Client).
 
+### Load simulation
+
+`scripts/load.ts` hammers a running API with concurrent, conflicting requests and then checks
+that no money was lost or created. It has no dependencies (Node 22.18+ runs the `.ts` file directly).
+
+```bash
+pnpm start:dev                                   # in another terminal
+pnpm load --requests 2000 --concurrency 100      # flags: --url --wallets --start-cents --max-amount-cents --seed
+```
+
+It funds a few wallets, then mixes transfers between them in both directions (lock contention,
+overdrafts), holds that are released or captured, and the same request sent twice in parallel with
+one `Idempotency-Key`. It exits non-zero unless all of these hold: no 5xx, no negative balance,
+wallet totals + captured = funded, every duplicate pair got the same response, and
+`/admin/reconciliation` is ok. The JSON report includes p50/p95/p99 latency per operation and a
+count per outcome (`201`, `422 insufficient_funds`, ...). `test/load.e2e-spec.ts` runs a small
+version in CI.
+
 Diagrams (architecture, request lifecycle, ledger algorithm, state machines, idempotency,
 concurrency, data model) and manual test cases live in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). An interactive version is in
