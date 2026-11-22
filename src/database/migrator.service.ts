@@ -23,7 +23,7 @@ export class MigratorService implements OnModuleInit {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async onModuleInit() {
-    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort();
+    const files = (await this.listMigrations()).filter((f) => f.endsWith('.sql')).sort();
 
     await this.locked(async (client) => {
       await client.query(
@@ -41,6 +41,18 @@ export class MigratorService implements OnModuleInit {
         await client.query('insert into schema_migrations (name) values ($1)', [file]);
         this.logger.log(`applied ${file}`);
       });
+    }
+  }
+
+  private async listMigrations(): Promise<string[]> {
+    try {
+      return await readdir(MIGRATIONS_DIR);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      throw new Error(
+        `migrations directory not found at ${MIGRATIONS_DIR}; the app must run from the project ` +
+          'root, and on Vercel migrations/ must be bundled (vercel.json functions.includeFiles)',
+      );
     }
   }
 

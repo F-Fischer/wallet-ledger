@@ -32,6 +32,11 @@ describe('MigratorService (Postgres)', () => {
     expect(after.rows).toEqual(before.rows);
   });
 
+  // These run on a direct connection, where a session lock would pass too.
+  // The point of the transaction-scoped lock is transaction-mode poolers
+  // (Neon's pooled URL, PgBouncer): verified by running `pnpm test` and
+  // `pnpm test:e2e` through PgBouncer with pool_mode = transaction, where the
+  // previous session-lock migrator hung. CI has no pooler.
   it('no advisory lock is left behind after boot', async () => {
     const { rows } = await pool.query(
       `select count(*)::int as n from pg_locks where locktype = 'advisory' and objid = 727001`,

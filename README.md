@@ -42,13 +42,16 @@ FX remittances (USD → MXN) and debit card issuing.
 The API and the demo page deploy as one Vercel project; Postgres comes from Neon through the Vercel
 Marketplace (free plan).
 
-1. In Vercel, **Add New → Project** and import this repository. NestJS is detected from
-   `src/main.ts`; keep the default build settings.
+1. In Vercel, **Add New → Project** and import this repository. Set **Application Preset** to
+   **NestJS**. Vercel may suggest Vite (it sees `vite`, which Vitest needs) and warn about a
+   configuration mismatch; ignore it, since the Vite preset would build a static site with no API.
+   Keep the default build and output settings.
 2. In the project, **Storage → Neon → Create** and connect it to the project. Check that
    `DATABASE_URL` now appears under **Settings → Environment Variables** (the pooled connection
    string is fine).
-3. Deploy. Migrations apply on the first request after each deployment's cold start; open the
-   deployment URL to get the demo page.
+3. Deploy and open the deployment URL to get the demo page. Each new function instance checks
+   for pending migrations when it boots (under a lock, so only the first one applies them; the
+   rest just see they are done).
 
 What makes it work on serverless:
 
