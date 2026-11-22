@@ -6,4 +6,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }
-await bootstrap();
+// Not awaited on purpose: on Vercel, `listen` resolves only after this module
+// finishes loading, so a top-level await deadlocks the function's init.
+bootstrap().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
