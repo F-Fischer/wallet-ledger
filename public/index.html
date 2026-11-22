@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet Ledger</title>
+<meta name="description" content="Live demo of a USD wallet on a double-entry ledger: deposits, holds, transfers, idempotency and reconciliation.">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #16181d; --muted: #5d6470; --line: #e3e6eb;
+    --accent: #2f5bea; --accent-ink: #ffffff; --good: #137a43; --good-bg: #e3f5ea;
+    --bad: #b42318; --bad-bg: #fdecea; --warn: #8a5a00; --warn-bg: #fff4d6; --chip: #eef1f5;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #171a21; --text: #e7e9ee; --muted: #9aa2b1; --line: #2a2f3a;
+      --accent: #6d8dff; --accent-ink: #0f1115; --good: #4ade80; --good-bg: #12301f;
+      --bad: #f87171; --bad-bg: #3a1616; --warn: #fbbf24; --warn-bg: #352a0c; --chip: #222733;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+           padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 2px 0 0; color: var(--muted); }
+  main { display: grid; gap: 16px; padding: 16px 20px; max-width: 1400px; margin: 0 auto;
+         grid-template-columns: 280px minmax(0, 1fr) 380px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+  main > * { min-width: 0; }
+  section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  h3 { font-size: 14px; margin: 0 0 6px; }
+  .stack > * + * { margin-top: 16px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 8px; min-width: 0; }
+  input[type=text] { flex: 1; }
+  input.amount { flex: 0 0 110px; width: 110px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--chip); color: var(--text);
+           border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  .muted { color: var(--muted); }
+  .mono, .money { font-family: var(--mono); }
+  .money { font-variant-numeric: tabular-nums; }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .hint code, p code { font-family: var(--mono); font-size: 12px; background: var(--chip); padding: 0 4px; border-radius: 4px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+           font-size: 12px; font-weight: 600; background: var(--chip); }
+  .badge.good { background: var(--good-bg); color: var(--good); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .wallet { width: 100%; text-align: left; display: block; padding: 8px 10px; margin-top: 6px; background: var(--bg); }
+  .wallet.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .wallet .name { font-weight: 600; }
+  .wallet .bal { font-size: 12px; color: var(--muted); }
+  .balances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .balance { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .balance .label { font-size: 12px; color: var(--muted); }
+  .balance .value { font-size: 22px; font-weight: 600; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  .plus { color: var(--good); } .minus { color: var(--bad); }
+  .status { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--chip); }
+  .status.settled, .status.captured { background: var(--good-bg); color: var(--good); }
+  .status.returned, .status.released { background: var(--chip); color: var(--muted); }
+  .status.pending, .status.active { background: var(--warn-bg); color: var(--warn); }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+  #log { max-height: 520px; overflow: auto; }
+  .entry { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 12px; }
+  .entry summary { cursor: pointer; display: flex; gap: 6px; align-items: center; list-style: none; }
+  .entry summary::-webkit-details-marker { display: none; }
+  .entry summary .path { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry pre { margin: 6px 0 0; padding: 8px; background: var(--bg); border-radius: 6px; overflow: auto;
+               font: 11px/1.4 var(--mono); white-space: pre-wrap; word-break: break-all; }
+  .code { font-family: var(--mono); font-weight: 600; }
+  .s2 { color: var(--good); } .s4 { color: var(--warn); } .s5 { color: var(--bad); }
+  .progress { height: 6px; background: var(--chip); border-radius: 999px; overflow: hidden; margin-top: 10px; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+  .checks { list-style: none; padding: 0; margin: 10px 0 0; }
+  .checks li { padding: 2px 0; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px);
+           padding: 10px 14px; border-radius: 8px; background: var(--bad-bg); color: var(--bad);
+           border: 1px solid var(--bad); font-weight: 500; display: none; z-index: 10; }
+  .flow { font-size: 12px; margin: 8px 0 0; padding: 8px 10px; background: var(--bg); border-radius: 6px; border: 1px dashed var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Wallet Ledger</h1>
+    <p>A USD wallet on a double-entry ledger. Every action below is a real HTTP call to this API, backed by Postgres.</p>
+  </div>
+  <div class="row">
+    <span id="recon" class="badge" title="GET /admin/reconciliation: all entries sum to 0 and every cached balance matches its entries">Reconciliation: …</span>
+  </div>
+</header>
+
+<main>
+  <!-- Wallets -->
+  <div class="stack">
+    <section class="panel">
+      <h2>Wallets</h2>
+      <form id="create-form" class="row">
+        <input id="owner-input" type="text" aria-label="Owner" placeholder="owner" pattern="[A-Za-z0-9_\-]{1,64}" required>
+        <button class="primary" type="submit">Create</button>
+      </form>
+      <p class="hint">Each wallet is three accounts: <code>pending</code>, <code>available</code>, <code>held</code>.</p>
+      <div id="wallets"></div>
+    </section>
+    <section class="panel">
+      <h2>How it works</h2>
+      <p class="hint">Money is an integer number of cents. Every movement is a journal transaction whose lines sum to 0. Entries are append-only, and a balance can never go negative: it is checked while the row is locked.</p>
+      <p class="hint">Every <code>POST</code> carries an <code>Idempotency-Key</code>. Sending the same key again returns the stored response and moves no money. Try <strong>Replay</strong> in the HTTP log.</p>
+    </section>
+  </div>
+
+  <!-- Selected wallet -->
+  <div class="stack">
+    <section class="panel" id="detail">
+      <div class="empty">Create or select a wallet to start.</div>
+    </section>
+    <section class="panel">
+      <h2>Stress test</h2>
+      <p class="hint" style="margin-top:0">Creates 3 fresh wallets with $1,000 each, then fires transfers in both directions (many larger than the balance), holds that are captured or released, and duplicate requests sent in parallel with the same key. Afterwards it checks that no money was created or lost.</p>
+      <div class="row" style="margin-top:10px">
+        <label>Requests <input id="st-requests" class="amount" type="number" min="10" max="1000" value="300"></label>
+        <label>Concurrency <input id="st-concurrency" class="amount" type="number" min="1" max="50" value="20"></label>
+        <button id="st-run" class="primary">Run</button>
+      </div>
+      <div class="progress"><div id="st-bar"></div></div>
+      <div id="st-result"></div>
+    </section>
+  </div>
+
+  <!-- HTTP log -->
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">HTTP log</h2>
+      <button class="small" id="clear-log">Clear</button>
+    </div>
+    <p class="hint">Newest first. Click a row for the request and response. <strong>Replay</strong> re-sends a <code>POST</code> with the same <code>Idempotency-Key</code>.</p>
+    <div id="log"></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+'use strict';
+
+// ---------- helpers ----------
+const $ = (sel) => document.querySelector(sel);
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return node;
+}
+
+/** Integer cents -> "$1,234.56". No floats anywhere. */
+function money(cents) {
+  const sign = cents < 0 ? '-' : '';
+  const abs = Math.abs(cents);
+  return `${sign}$${Math.floor(abs / 100).toLocaleString('en-US')}.${String(abs % 100).padStart(2, '0')}`;
+}
+
+/** "12.5" -> 1250 cents, parsed as text so 0.1 + 0.2 never happens. */
+function parseDollars(text) {
+  const m = /^\s*(\d{1,7})(?:\.(\d{1,2}))?\s*$/.exec(text);
+  if (!m) return null;
+  const cents = Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'));
+  return cents > 0 ? cents : null;
+}
+
+function uuid() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+const shortId = () => Math.random().toString(36).slice(2, 6);
+
+function store(key, value) {
+  try {
+    if (value === undefined) return JSON.parse(localStorage.getItem(key) ?? 'null');
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { return null; }
+}
+
+let toastTimer;
+function toast(message) {
+  const t = $('#toast');
+  t.textContent = message;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.style.display = 'none'), 4000);
+}
+
+// ---------- API client + HTTP log ----------
+const log = [];
+
+/** Calls the API. POSTs get an Idempotency-Key (a new one unless `key` is given). */
+async function api(method, path, body, { key, quiet = false } = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (method === 'POST') headers['idempotency-key'] = key ?? uuid();
+  const started = performance.now();
+  let status = 0, data = null, replayed = false;
+  try {
+    const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    status = res.status;
+    replayed = res.headers.get('idempotent-replayed') === 'true';
+    const text = await res.text();
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  } catch (err) {
+    data = { error: { code: 'network_error', message: String(err) } };
+  }
+  const result = { method, path, body, key: headers['idempotency-key'], status, data, replayed,
+                   ms: Math.round(performance.now() - started) };
+  if (!quiet) {
+    log.unshift(result);
+    if (log.length > 100) log.pop();
+    renderLog();
+  }
+  return result;
+}
+
+function errorText(r) {
+  const e = r.data?.error;
+  return e ? `${r.status} ${e.code}: ${e.message}` : `${r.status}`;
+}
+
+function renderLog() {
+  const box = $('#log');
+  box.replaceChildren();
+  if (log.length === 0) { box.append(el('div', { class: 'empty' }, 'No requests yet.')); return; }
+  for (const r of log) {
+    const cls = r.status >= 500 || r.status === 0 ? 's5' : r.status >= 400 ? 's4' : 's2';
+    const code = r.data?.error?.code;
+    box.append(el('details', { class: 'entry' },
+      el('summary', {},
+        el('span', { class: 'code ' + cls }, r.status || 'ERR'),
+        el('span', { class: 'mono path', title: r.path }, `${r.method} ${r.path.replace(/([0-9a-f]{8})-[0-9a-f-]{27}/g, '$1…')}`),
+        code && el('span', { class: 'muted' }, code),
+        r.replayed && el('span', { class: 'badge warn', title: 'Idempotent-Replayed: true' }, 'replayed'),
+        el('span', { class: 'muted' }, `${r.ms} ms`),
+        r.method === 'POST' && el('button', {
+          class: 'small', title: 'Send the same request again with the same Idempotency-Key',
+          onclick: async (ev) => {
+            ev.preventDefault();
+            await api(r.method, r.path, r.body, { key: r.key });
+            await refreshAll();
+          },
+        }, 'Replay'),
+      ),
+      el('pre', {}, [
+        r.key ? `Idempotency-Key: ${r.key}\n` : '',
+        r.body ? `Request:  ${JSON.stringify(r.body)}\n` : '',
+        `Response: ${JSON.stringify(r.data, null, 2)}`,
+      ].join('')),
+    ));
+  }
+}
+$('#clear-log').addEventListener('click', () => { log.length = 0; renderLog(); });
+
+// ---------- state ----------
+const state = {
+  owners: store('wl.owners') ?? [],
+  wallets: {},                       // owner -> wallet view
+  selected: store('wl.selected'),
+  deposits: store('wl.deposits') ?? {}, // owner -> [{id, amount_cents, status}]
+  holds: store('wl.holds') ?? {},       // owner -> [{id, amount_cents, status, expires_at}]
+  entries: [],
+  tab: 'deposit',
+};
+function persist() {
+  store('wl.owners', state.owners);
+  store('wl.selected', state.selected);
+  store('wl.deposits', state.deposits);
+  store('wl.holds', state.holds);
+}
+
+async function refreshWallet(owner) {
+  const r = await api('GET', `/wallets/${owner}`, null, { quiet: true });
+  if (r.status === 200) state.wallets[owner] = r.data;
+  else if (r.status === 404) {          // e.g. the database was reset: forget it
+    state.owners = state.owners.filter((o) => o !== owner);
+    delete state.wallets[owner];
+    if (state.selected === owner) state.selected = state.owners[0] ?? null;
+  }
+}
+
+async function refreshAll() {
+  await Promise.all(state.owners.map(refreshWallet));
+  if (state.selected) {
+    const r = await api('GET', `/wallets/${state.selected}/entries?limit=20`, null, { quiet: true });
+    state.entries = r.status === 200 ? r.data.entries : [];
+  }
+  persist();
+  renderWallets();
+  renderDetail();
+  refreshRecon();
+}
+
+async function refreshRecon() {
+  const r = await api('GET', '/admin/reconciliation', null, { quiet: true });
+  const badge = $('#recon');
+  if (r.status !== 200) { badge.className = 'badge warn'; badge.textContent = 'Reconciliation: unavailable'; return; }
+  badge.className = 'badge ' + (r.data.ok ? 'good' : 'bad');
+  badge.textContent = r.data.ok
+    ? '✓ Ledger reconciles'
+    : `✗ Reconciliation failed: sum ${r.data.system_sum_cents}, ${r.data.mismatches.length} mismatches`;
+}
+
+// ---------- wallets ----------
+$('#owner-input').value = `alice-${shortId()}`;
+$('#create-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const owner = $('#owner-input').value.trim().toLowerCase();
+  const r = await api('POST', '/wallets', { owner });
+  if (r.status !== 201) return toast(errorText(r));
+  if (!state.owners.includes(owner)) state.owners.push(owner);
+  state.selected = owner;
+  $('#owner-input').value = `${['bob', 'carol', 'dave', 'erin'][state.owners.length % 4]}-${shortId()}`;
+  await refreshAll();
+});
+
+function renderWallets() {
+  const box = $('#wallets');
+  box.replaceChildren();
+  if (state.owners.length === 0) { box.append(el('div', { class: 'empty' }, 'No wallets yet.')); return; }
+  for (const owner of state.owners) {
+    const w = state.wallets[owner];
+    box.append(el('button', {
+      class: 'wallet' + (owner === state.selected ? ' selected' : ''),
+      onclick: async () => { state.selected = owner; await refreshAll(); },
+    },
+      el('div', { class: 'name' }, owner),
+      el('div', { class: 'bal money' }, w ? `${money(w.available_cents)} available` : '…'),
+    ));
+  }
+}
+
+// ---------- selected wallet ----------
+const FLOWS = {
+  deposit: 'Debit sys:funding_receivable · Credit user:pending. Pending money is not spendable until the ACH settles.',
+  hold: 'Debit user:available · Credit user:held. Capture sends it to sys:payouts_out; release returns it to available.',
+  transfer: 'Debit sender:available · Credit receiver:available, in one transaction, so it either fully happens or not at all.',
+};
+
+function amountInput(id, placeholder = '0.00') {
+  return el('input', { id, class: 'amount', type: 'text', inputmode: 'decimal', placeholder, 'aria-label': 'Amount in USD' });
+}
+
+function renderDetail() {
+  const box = $('#detail');
+  box.replaceChildren();
+  const owner = state.selected;
+  const w = owner && state.wallets[owner];
+  if (!w) { box.append(el('div', { class: 'empty' }, 'Create or select a wallet to start.')); return; }
+
+  box.append(
+    el('div', { class: 'row', style: 'justify-content:space-between;margin-bottom:10px' },
+      el('h2', { style: 'margin:0' }, `Wallet · ${owner}`),
+      el('span', { class: 'muted' }, w.currency)),
+    el('div', { class: 'balances' },
+      ...[['Available', w.available_cents, 'spendable'], ['Pending', w.pending_cents, 'ACH in flight'], ['Held', w.held_cents, 'reserved by holds']]
+        .map(([label, cents, sub]) => el('div', { class: 'balance' },
+          el('div', { class: 'label' }, label),
+          el('div', { class: 'value money' }, money(cents)),
+          el('div', { class: 'label' }, sub)))),
+  );
+
+  // action tabs
+  const tabs = el('div', { class: 'tabs', role: 'tablist', style: 'margin-top:16px' },
+    ...['deposit', 'hold', 'transfer'].map((t) => el('button', {
+      role: 'tab', 'aria-selected': String(state.tab === t),
+      onclick: () => { state.tab = t; renderDetail(); },
+    }, t[0].toUpperCase() + t.slice(1))));
+  box.append(tabs, actionForm(owner), el('p', { class: 'flow' }, el('strong', {}, 'Journal: '), FLOWS[state.tab]));
+
+  // deposits + holds
+  box.append(el('div', { style: 'margin-top:16px' }, el('h3', {}, 'Deposits'), depositsTable(owner)));
+  box.append(el('div', { style: 'margin-top:16px' }, el('h3', {}, 'Holds'), holdsTable(owner)));
+
+  // journal entries
+  box.append(el('div', { style: 'margin-top:16px' },
+    el('h3', {}, 'Ledger entries ', el('span', { class: 'muted', style: 'font-weight:400' }, '(latest 20, from GET /wallets/:owner/entries)')),
+    entriesTable()));
+}
+
+function actionForm(owner) {
+  if (state.tab === 'deposit') {
+    const amount = amountInput('dep-amount', '100.00');
+    return el('form', { class: 'row', onsubmit: async (ev) => {
+      ev.preventDefault();
+      const cents = parseDollars(amount.value);
+      if (!cents) return toast('Enter an amount like 100 or 12.50');
+      const r = await api('POST', `/wallets/${owner}/deposits`, { amount_cents: cents });
+      if (r.status !== 201) return toast(errorText(r));
+      (state.deposits[owner] ??= []).unshift(r.data);
+      await refreshAll();
+    } }, el('span', {}, 'ACH deposit $'), amount, el('button', { class: 'primary', type: 'submit' }, 'Deposit'));
+  }
+  if (state.tab === 'hold') {
+    const amount = amountInput('hold-amount', '25.00');
+    const ttl = el('select', { 'aria-label': 'Expires in' },
+      el('option', { value: '60' }, '1 min'), el('option', { value: '600', selected: true }, '10 min'), el('option', { value: '3600' }, '1 hour'));
+    return el('form', { class: 'row', onsubmit: async (ev) => {
+      ev.preventDefault();
+      const cents = parseDollars(amount.value);
+      if (!cents) return toast('Enter an amount like 25 or 9.99');
+      const r = await api('POST', `/wallets/${owner}/holds`, { amount_cents: cents, ttl_seconds: Number(ttl.value) });
+      if (r.status !== 201) return toast(errorText(r));
+      (state.holds[owner] ??= []).unshift(r.data);
+      await refreshAll();
+    } }, el('span', {}, 'Hold $'), amount, el('span', { class: 'muted' }, 'expires in'), ttl,
+       el('button', { class: 'primary', type: 'submit' }, 'Place hold'));
+  }
+  const others = state.owners.filter((o) => o !== owner);
+  const to = el('select', { 'aria-label': 'Recipient' }, ...others.map((o) => el('option', { value: o }, o)));
+  const amount = amountInput('tr-amount', '10.00');
+  return el('form', { class: 'row', onsubmit: async (ev) => {
+    ev.preventDefault();
+    if (!to.value) return toast('Create a second wallet to transfer to');
+    const cents = parseDollars(amount.value);
+    if (!cents) return toast('Enter an amount like 10 or 0.50');
+    const r = await api('POST', '/transfers', { from: owner, to: to.value, amount_cents: cents });
+    if (r.status !== 201) toast(errorText(r));
+    await refreshAll();
+  } }, el('span', {}, 'Send $'), amount, el('span', { class: 'muted' }, 'to'),
+     others.length ? to : el('span', { class: 'muted' }, '(create another wallet)'),
+     el('button', { class: 'primary', type: 'submit', disabled: others.length === 0 }, 'Transfer'));
+}
+
+async function transition(kind, owner, item, action) {
+  const r = await api('POST', `/${kind}/${item.id}/${action}`);
+  if (r.status === 200) Object.assign(item, r.data);
+  else toast(errorText(r));
+  await refreshAll();
+}
+
+function depositsTable(owner) {
+  const list = state.deposits[owner] ?? [];
+  if (list.length === 0) return el('div', { class: 'empty' }, 'No deposits yet.');
+  return el('table', {},
+    el('thead', {}, el('tr', {}, el('th', {}, 'Amount'), el('th', {}, 'Status'), el('th', {}, ''))),
+    el('tbody', {}, ...list.map((d) => el('tr', {},
+      el('td', { class: 'money' }, money(d.amount_cents)),
+      el('td', {}, el('span', { class: 'status ' + d.status }, d.status)),
+      el('td', { class: 'num' }, d.status === 'pending' && el('span', { class: 'row', style: 'justify-content:flex-end' },
+        el('button', { class: 'small', title: 'ACH settled: pending -> available', onclick: () => transition('deposits', owner, d, 'settle') }, 'Settle'),
+        el('button', { class: 'small', title: 'ACH returned: the pending money disappears', onclick: () => transition('deposits', owner, d, 'return') }, 'Return'))),
+    ))));
+}
+
+function holdsTable(owner) {
+  const list = state.holds[owner] ?? [];
+  if (list.length === 0) return el('div', { class: 'empty' }, 'No holds yet.');
+  const now = Date.now();
+  return el('table', {},
+    el('thead', {}, el('tr', {}, el('th', {}, 'Amount'), el('th', {}, 'Status'), el('th', {}, 'Expires'), el('th', {}, ''))),
+    el('tbody', {}, ...list.map((h) => {
+      const left = Math.round((new Date(h.expires_at).getTime() - now) / 1000);
+      return el('tr', {},
+        el('td', { class: 'money' }, money(h.amount_cents)),
+        el('td', {}, el('span', { class: 'status ' + h.status }, h.status)),
+        el('td', { class: 'muted' }, h.status !== 'active' ? '—' : left > 0 ? `in ${left >= 120 ? Math.round(left / 60) + ' min' : left + ' s'}` : 'expired'),
+        el('td', { class: 'num' }, h.status === 'active' && el('span', { class: 'row', style: 'justify-content:flex-end' },
+          el('button', { class: 'small', title: 'Money leaves the wallet (held -> sys:payouts_out)', onclick: () => transition('holds', owner, h, 'capture') }, 'Capture'),
+          el('button', { class: 'small', title: 'Money returns to available', onclick: () => transition('holds', owner, h, 'release') }, 'Release'))),
+      );
+    })));
+}
+
+function entriesTable() {
+  if (state.entries.length === 0) return el('div', { class: 'empty' }, 'No entries yet.');
+  return el('table', {},
+    el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Transaction'), el('th', {}, 'Account'), el('th', { class: 'num' }, 'Effect'))),
+    el('tbody', {}, ...state.entries.map((e) => el('tr', {},
+      el('td', { class: 'muted mono' }, e.id),
+      el('td', {}, e.transaction_kind, el('div', { class: 'muted mono', style: 'font-size:11px' }, e.transaction_id.slice(0, 8))),
+      el('td', {}, e.account),
+      el('td', { class: 'num money ' + (e.effect_cents > 0 ? 'plus' : 'minus') }, (e.effect_cents > 0 ? '+' : '') + money(e.effect_cents)),
+    ))));
+}
+
+// ---------- stress test (same idea as scripts/load.ts, from the browser) ----------
+function canonical(value) {
+  return JSON.stringify(value, (_k, v) => v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
+}
+function pct(sorted, p) {
+  if (!sorted.length) return 0;
+  return Math.round(sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))]);
+}
+
+$('#st-run').addEventListener('click', async () => {
+  const requests = Math.min(1000, Math.max(10, Number($('#st-requests').value) || 300));
+  const concurrency = Math.min(50, Math.max(1, Number($('#st-concurrency').value) || 20));
+  const button = $('#st-run'), bar = $('#st-bar'), out = $('#st-result');
+  button.disabled = true; bar.style.width = '0';
+  out.replaceChildren(el('p', { class: 'hint' }, 'Setting up 3 wallets…'));
+
+  const START = 100_000, MAX = 30_000;
+  const run = shortId();
+  const owners = [0, 1, 2].map((i) => `stress-${run}-${i}`);
+  try {
+    for (const owner of owners) {
+      if ((await api('POST', '/wallets', { owner }, { quiet: true })).status !== 201) throw new Error('could not create wallets');
+      const dep = await api('POST', `/wallets/${owner}/deposits`, { amount_cents: START }, { quiet: true });
+      if ((await api('POST', `/deposits/${dep.data.id}/settle`, null, { quiet: true })).status !== 200) throw new Error('could not fund wallets');
+    }
+  } catch (err) {
+    out.replaceChildren(el('p', { class: 'hint' }, String(err)));
+    button.disabled = false; return;
+  }
+
+  const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
+  const amount = () => 1 + Math.floor(Math.random() * MAX);
+  const pair = () => { const from = pick(owners); let to = pick(owners); while (to === from) to = pick(owners); return { from, to }; };
+  const outcomes = {}, latencies = [];
+  let serverErrors = 0, captured = 0, mismatches = 0, done = 0;
+  const call = async (method, path, body, key) => {
+    const r = await api(method, path, body, { key, quiet: true });
+    latencies.push(r.ms);
+    const label = r.status < 300 ? String(r.status) : `${r.status} ${r.data?.error?.code ?? ''}`.trim();
+    outcomes[label] = (outcomes[label] ?? 0) + 1;
+    if (r.status >= 500 || r.status === 0) serverErrors++;
+    return r;
+  };
+  const ops = Array.from({ length: requests }, () => {
+    const x = Math.random();
+    if (x < 0.7) return () => call('POST', '/transfers', { ...pair(), amount_cents: amount() });
+    if (x < 0.9) return async () => {
+      const h = await call('POST', `/wallets/${pick(owners)}/holds`, { amount_cents: amount() });
+      if (h.status !== 201) return;
+      if (Math.random() < 0.2) {
+        if ((await call('POST', `/holds/${h.data.id}/capture`)).status === 200) captured += h.data.amount_cents;
+      } else await call('POST', `/holds/${h.data.id}/release`);
+    };
+    return async () => {
+      const body = { ...pair(), amount_cents: amount() }, key = uuid();
+      const [a, b] = await Promise.all([call('POST', '/transfers', body, key), call('POST', '/transfers', body, key)]);
+      if (a.status !== b.status || canonical(a.data) !== canonical(b.data)) mismatches++;
+    };
+  });
+  const t0 = performance.now();
+  let next = 0;
+  out.replaceChildren(el('p', { class: 'hint' }, `Running ${requests} operations, ${concurrency} at a time…`));
+  await Promise.all(Array.from({ length: concurrency }, async () => {
+    while (next < ops.length) {
+      await ops[next++]();
+      done++;
+      bar.style.width = `${Math.round((done / ops.length) * 100)}%`;
+    }
+  }));
+  const seconds = (performance.now() - t0) / 1000;
+
+  let total = 0, negative = false;
+  for (const owner of owners) {
+    const w = (await api('GET', `/wallets/${owner}`, null, { quiet: true })).data;
+    for (const k of ['available_cents', 'pending_cents', 'held_cents']) { total += w[k]; if (w[k] < 0) negative = true; }
+  }
+  const recon = (await api('GET', '/admin/reconciliation', null, { quiet: true })).data;
+  const checks = [
+    ['No server errors (5xx)', serverErrors === 0],
+    ['No negative balance', !negative],
+    [`Money conserved: ${money(total)} in wallets + ${money(captured)} captured = ${money(START * 3)}`, total + captured === START * 3],
+    ['Duplicate requests got identical responses', mismatches === 0],
+    ['Ledger reconciles', recon?.ok === true],
+  ];
+  const sorted = [...latencies].sort((a, b) => a - b);
+  out.replaceChildren(
+    el('p', { class: 'hint' }, `${latencies.length} HTTP requests in ${seconds.toFixed(1)} s (${Math.round(latencies.length / seconds)} req/s) · latency p50 ${pct(sorted, 50)} ms · p95 ${pct(sorted, 95)} ms · p99 ${pct(sorted, 99)} ms`),
+    el('p', { class: 'hint' }, 'Outcomes: ', Object.entries(outcomes).sort().map(([k, v]) => `${k} × ${v}`).join(' · ')),
+    el('ul', { class: 'checks' }, ...checks.map(([label, ok]) => el('li', {}, el('span', { class: ok ? 'plus' : 'minus' }, ok ? '✓ ' : '✗ '), label))),
+    el('p', { class: 'badge ' + (checks.every(([, ok]) => ok) ? 'good' : 'bad') }, checks.every(([, ok]) => ok) ? 'All invariants held' : 'An invariant was broken'),
+  );
+  button.disabled = false;
+  refreshRecon();
+});
+
+// ---------- boot ----------
+renderLog();
+refreshAll();
+setInterval(refreshRecon, 10_000);
+</script>
+</body>
+</html>

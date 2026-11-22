@@ -22,6 +22,13 @@ pnpm test:all
 
 `requests.http` has the full flow for manual testing (WebStorm / VS Code REST Client).
 
+**Demo page:** open http://localhost:3000/ after `pnpm start:dev`. It creates wallets, makes deposits
+(settle / return), holds (capture / release) and transfers, shows the ledger entries each one wrote,
+logs every HTTP call with a *Replay* button that re-sends a `POST` with the same `Idempotency-Key`,
+and runs a stress test from the browser. It is one static file (`public/index.html`, served by
+`src/demo/demo.controller.ts`) that only uses the public API. See
+[`docs/features/demo-web.md`](docs/features/demo-web.md).
+
 Diagrams (architecture, request lifecycle, ledger algorithm, state machines, idempotency,
 concurrency, data model) and manual test cases live in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). An interactive version is in
