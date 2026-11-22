@@ -1,4 +1,5 @@
 import { INestApplication, ModuleMetadata } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import pg from 'pg';
 import { AppModule } from '../src/app.module.js';
@@ -9,6 +10,7 @@ import { DepositsService } from '../src/wallet/deposits.service.js';
 import { HoldsService } from '../src/wallet/holds.service.js';
 import { TransfersService } from '../src/wallet/transfers.service.js';
 import { WalletsService } from '../src/wallet/wallets.service.js';
+import { serveSite } from '../src/site.js';
 
 export interface TestContext {
   app: INestApplication;
@@ -39,7 +41,8 @@ export async function resetDatabase(): Promise<void> {
 /**
  * Clean database + migrations (run by the app on init). `imports` adds
  * test-only modules (e.g. a fake webhook controller) next to AppModule.
- * `rawBody: true` matches src/main.ts so webhook signatures verify the same way.
+ * `rawBody: true` and `serveSite` match src/main.ts, so webhook signatures
+ * verify the same way and the built site (public/) is served.
  */
 export async function createTestContext(
   options: { imports?: ModuleMetadata['imports'] } = {},
@@ -48,7 +51,11 @@ export async function createTestContext(
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule, ...(options.imports ?? [])],
   }).compile();
-  const app = moduleRef.createNestApplication({ logger: ['error'], rawBody: true });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({
+    logger: ['error'],
+    rawBody: true,
+  });
+  serveSite(app);
   await app.init();
   return {
     app,

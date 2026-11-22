@@ -4,3 +4,5 @@ dist/
 *.tsbuildinfo
 .idea/
 .DS_Store
+public/
+docs/.vitepress/cache/

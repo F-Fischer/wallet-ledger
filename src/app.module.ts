@@ -4,7 +4,6 @@ import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { DomainExceptionFilter } from './common/domain-exception.filter.js';
 import { DatabaseModule } from './database/database.module.js';
-import { DemoController } from './demo/demo.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { LedgerModule } from './ledger/ledger.module.js';
@@ -18,7 +17,7 @@ import { WalletModule } from './wallet/wallet.module.js';
     LedgerModule,
     WalletModule,
   ],
-  controllers: [HealthController, DemoController],
+  controllers: [HealthController],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
     {
