@@ -52,6 +52,13 @@ The phase is split into 14 sized tasks and 4 pull requests:
   `sys:bank` movements and keep a queue of breaks to resolve: external reconciliation next to the
   internal one that exists today.
 
+## Not planned
+
+Out of scope for now, with no plan: an orchestrator or saga layer, multi-currency balances, real
+payout and funding partners (deposits and holds simulate them), automatic sweeping of expired
+holds, a real-time phase (pushing balance changes to clients over SSE; the outbox candidate is its first half), and an ACH return *after* settlement (it needs a reversal on `available`; the receivable now
+makes it possible).
+
 ## Parked: FX remittances
 
 Sending USD from the wallet to a recipient in Mexico, paid out in MXN by SPEI bank transfer or cash

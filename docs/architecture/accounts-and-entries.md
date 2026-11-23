@@ -34,8 +34,14 @@ flowchart LR
 | 5 | Capture hold | `user:held` | `sys:payouts_out` | `hold:<id>:captured` |
 | 6 | Release hold | `user:held` | `user:available` | `hold:<id>:released` |
 | 7 | Transfer | `userA:available` | `userB:available` | `transfer:<Idempotency-Key>` |
+| 8 | Reversal of any transaction | original credits | original debits | `<originalKey>:reversal` |
 
 > **Why does a credit increase the user's balance?** User accounts are **credit-normal**: they represent money the platform owes the user, so they grow with credits. `sys:funding_receivable` and `sys:bank` are debit-normal and grow with debits. `LedgerService` turns each line into a balance change according to the account's `normal_side` (see *Balance sign math* in Part 2).
+
+User accounts (`pending`, `available`, `held`) are credit-normal: money the platform owes the user.
+The exception is `user:<owner>:receivable` (debit-normal, never negative): what the user owes the
+platform. It's created lazily by `WalletsService.ensureReceivable` inside the transaction that first
+needs it, never with the wallet ([ledger foundation](/features/ledger-foundation)).
 
 ## Worked example
 

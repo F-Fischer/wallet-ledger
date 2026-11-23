@@ -53,6 +53,8 @@ flowchart LR
 - [Inside the Nest app](./nest-internals): project map, module graph, request lifecycle, boot and shutdown, `TransactionHost`.
 - [postTransaction and full traces](./post-transaction): the core write path, step by step, through real operations.
 - [Errors, reconciliation and pagination](./operations)
-- [Testing](./testing): how the suite runs against real Postgres, plus manual test cases with `curl`.
+- [Testing](./testing): how the suite runs against real Postgres, what each test proves, the load simulator, and manual test cases with `curl`.
+- [API reference](./api): endpoints, errors and HTTP behaviour.
+- [Deployment](./deployment): Vercel + Neon, and what makes it work on serverless.
 
 For *why* it is built this way, see the [decision records](/decisions/).
