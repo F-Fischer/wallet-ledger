@@ -56,7 +56,7 @@ The phase is split into 14 sized tasks and 4 pull requests:
 
 Out of scope for now, with no plan: an orchestrator or saga layer, multi-currency balances, real
 payout and funding partners (deposits and holds simulate them), automatic sweeping of expired
-holds, and an ACH return *after* settlement (it needs a reversal on `available`; the receivable now
+holds, a real-time phase (pushing balance changes to clients over SSE; the outbox candidate is its first half), and an ACH return *after* settlement (it needs a reversal on `available`; the receivable now
 makes it possible).
 
 ## Parked: FX remittances

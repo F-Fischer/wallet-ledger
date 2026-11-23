@@ -41,14 +41,16 @@ flowchart TB
 - A hold with a 1 s TTL, once expired, can't be captured but can be released.
 - A hold without funds leaves no orphan row in `holds`.
 - **Concurrency**: 50 parallel holds of 1,000 on 10,000 → exactly 10 succeed, 40 `insufficient_funds`.
-- A transfer retried with the same key moves money once; overdrawing changes nothing.
+- A transfer retried with the same key moves money once; overdrawing changes nothing; a transfer to the same wallet is `invalid_request`.
 - At the end of the suite `reconcile().ok` is `true`.
 
 **`test/foundation.spec.ts`**
 - Migration 002 applies after 001; the `receivable` kind is accepted, unknown kinds are rejected.
 - `lockBalances` returns current balances, `not_found` with the missing ids, and blocks a concurrent `postTransaction` on the same rows until commit.
 - `reverseTransaction` restores balances with the exact negation; reversing twice is a no-op; unknown key → `not_found`; reversing a credit already spent → `insufficient_funds` with nothing written.
-- The receivable is not created with the wallet; `ensureReceivable` twice creates one account; a split debit shows up as `owed_cents`; a rolled-back transaction leaves no receivable.
+- Reversal guards: a reversal can't be reversed (`not_reversible`); a transaction with a partial correction can't be fully reversed, nor a reversed one corrected; a correction racing a reversal refunds only once; a correction must name an existing journal; an unrelated journal using the `<key>:reversal` name isn't mistaken for the reversal.
+- Lock-order contract: posting to an account `lockBalances` didn't lock throws; several posts are fine when the union was locked first; later `lockBalances` calls may only add accounts that sort after those held; rows lock in byte order whatever the collation; `lockJournal` after a balance lock throws and journals lock in ascending order; the lock set doesn't leak into the next transaction.
+- The receivable is not created with the wallet; `ensureReceivable` twice creates one account; a split debit shows up as `owed_cents`; a rolled-back transaction leaves no receivable; two concurrent first-time calls create one account; calling it after another ledger lock throws; unknown wallet → `not_found`.
 - At the end of the suite `reconcile().ok` is `true`.
 
 **`test/migrator.spec.ts`**
@@ -67,12 +69,12 @@ flowchart TB
 - Full flow over HTTP, including paginated history and reconciliation.
 - `POST` without `Idempotency-Key` → 400.
 - Retry with the same key → same status and body, `Idempotent-Replayed: true`, no double effect.
-- Same key with a different body → 422 `idempotency_key_reused`.
+- Same key with a different body → 422 `idempotency_key_reused`; two senders reusing one key on `/transfers` → the second gets 422.
 - Two identical parallel requests with the same key → same id, one effect.
 - A business error retried → same 422 with `Idempotent-Replayed: true`.
 - `amount_cents` = `10.5`, `-100`, `0`, `"100"`, over the max, or `null` → 400 `invalid_request`.
 - A validation error doesn't consume the key.
-- Unknown fields, bad UUIDs and invalid owners → 400; missing resources → 404; duplicate wallet → 409.
+- Unknown fields, bad UUIDs and invalid owners → 400; a transfer to the same wallet → 400; missing resources → 404; duplicate wallet → 409.
 - `GET /wallets/:owner` shows `owed_cents` from the receivable.
 - The docs site is served at `/` and by clean URL, the demo as a static page, hashed assets with immutable caching, and API routes still win when no file matches.
 
