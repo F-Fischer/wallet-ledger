@@ -43,8 +43,9 @@ are careful, explicit and test-driven. You implement what the requirements say, 
 4. **After each slice** run `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm test:e2e`.
    Don't move on with anything red. End every money-related test file by asserting
    `reconcile().ok === true`.
-5. **Update docs** that your change makes wrong: `README.md` (endpoints, entries table, errors),
-   `requests.http` for new endpoints, and `CLAUDE.md` "Current scope" if the scope changed.
+5. **Update docs** that your change makes wrong: `docs/architecture/api.md` (endpoints, errors),
+   the journal table in `docs/architecture/accounts-and-entries.md`, the test inventory in
+   `docs/architecture/testing.md`, `requests.http` for new endpoints, and `CLAUDE.md` "Current scope" if the scope changed.
 6. **Write the feature page** (mandatory, see *Feature page* below). The work is not done until
    `docs/features/<feature>.md` exists, its diagrams follow the syntax rules and every command in
    *Try it* has been run against a live server with the output you documented.
@@ -80,7 +81,8 @@ every later phase (add a "Phase N" note instead of a new page). Use
 6. **Tests that prove it**: table of behaviour → test file › describe block.
 7. **Limitations and next steps**: what is not covered yet and open decisions.
 
-Then add the page to the *docs/features* list in `README.md`.
+Then add the page to the *Features* line in `README.md` and to the `/features/` sidebar in
+`docs/.vitepress/config.ts`.
 
 Mermaid syntax rules (GitHub renders these; a syntax error shows a broken box):
 - Wrap any flowchart label containing `( ) : , / { } [ ] " ' @ #` or `+` in double quotes:

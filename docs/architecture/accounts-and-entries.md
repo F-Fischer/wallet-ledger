@@ -37,6 +37,24 @@ flowchart LR
 
 > **Why does a credit increase the user's balance?** User accounts are **credit-normal**: they represent money the platform owes the user, so they grow with credits. `sys:funding_receivable` and `sys:bank` are debit-normal and grow with debits. `LedgerService` turns each line into a balance change according to the account's `normal_side` (see *Balance sign math* in Part 2).
 
+## Journal entries by operation
+
+| Operation | Debit | Credit | Journal key |
+|---|---|---|---|
+| Deposit initiated | `sys:funding_receivable` | `user:pending` | `deposit:<id>:initiated` |
+| Deposit settled | `user:pending` + `sys:bank` | `user:available` + `sys:funding_receivable` | `deposit:<id>:settled` |
+| Deposit returned | `user:pending` | `sys:funding_receivable` | `deposit:<id>:returned` |
+| Hold created | `user:available` | `user:held` | `hold:<id>:created` |
+| Hold captured | `user:held` | `sys:payouts_out` | `hold:<id>:captured` |
+| Hold released | `user:held` | `user:available` | `hold:<id>:released` |
+| Transfer | `userA:available` | `userB:available` | `transfer:<Idempotency-Key>` |
+| Reversal of any transaction | original credits | original debits | `<originalKey>:reversal` |
+
+User accounts (`pending`, `available`, `held`) are credit-normal: money the platform owes the user.
+The exception is `user:<owner>:receivable` (debit-normal, never negative): what the user owes the
+platform. It's created lazily by `WalletsService.ensureReceivable` inside the transaction that first
+needs it, never with the wallet ([ledger foundation](/features/ledger-foundation)).
+
 ## Worked example
 
 Juan deposits $100 by ACH, it settles, he holds $25 for a payout and the payout goes out. Amounts in cents. Bold cells are the accounts that change in each step.

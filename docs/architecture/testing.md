@@ -22,6 +22,81 @@ flowchart TB
 
 *Files run one at a time because they share one database; inside a file, the concurrency tests still run requests in parallel.*
 
+## What each test proves
+
+**`test/ledger.spec.ts`**
+- A balanced transaction updates both balances (debit/credit according to the normal side).
+- Transactions that don't sum to 0, have one line, decimals or zero amounts are rejected (`unbalanced_transaction`).
+- Reusing a journal key returns `replayed: true` and leaves balances unchanged.
+- A movement that would make a user account negative fails with `insufficient_funds`.
+- `UPDATE`/`DELETE` on `entries` and `journal_transactions` fail with `append_only`.
+- An unknown account is `not_found`.
+- Entries sum to 0 globally and `reconcile().ok` is `true`; if the cache drifts, `reconcile` detects it.
+
+**`test/wallet.spec.ts`**
+- A pending deposit can't fund a hold; once settled, it can.
+- Settling twice credits once.
+- A returned ACH leaves `available` untouched and can no longer be settled.
+- Hold → capture / hold → release move the right balances; repeating is a no-op; crossing states is `hold_not_active`.
+- A hold with a 1 s TTL, once expired, can't be captured but can be released.
+- A hold without funds leaves no orphan row in `holds`.
+- **Concurrency**: 50 parallel holds of 1,000 on 10,000 → exactly 10 succeed, 40 `insufficient_funds`.
+- A transfer retried with the same key moves money once; overdrawing changes nothing.
+- At the end of the suite `reconcile().ok` is `true`.
+
+**`test/foundation.spec.ts`**
+- Migration 002 applies after 001; the `receivable` kind is accepted, unknown kinds are rejected.
+- `lockBalances` returns current balances, `not_found` with the missing ids, and blocks a concurrent `postTransaction` on the same rows until commit.
+- `reverseTransaction` restores balances with the exact negation; reversing twice is a no-op; unknown key → `not_found`; reversing a credit already spent → `insufficient_funds` with nothing written.
+- The receivable is not created with the wallet; `ensureReceivable` twice creates one account; a split debit shows up as `owed_cents`; a rolled-back transaction leaves no receivable.
+- At the end of the suite `reconcile().ok` is `true`.
+
+**`test/migrator.spec.ts`**
+- Several instances booting at once apply each migration exactly once; a second boot is a no-op.
+- On Vercel the app doesn't migrate at boot (the build step does).
+- No advisory lock is left behind after boot.
+
+**`test/signature.spec.ts`**
+- `verifyHmacSignature` accepts the hex HMAC-SHA256 of the exact bytes and rejects other bodies, secrets, missing/truncated/non-hex signatures, and a missing body or secret.
+
+**`test/webhooks.e2e-spec.ts`** (test-only webhook controller)
+- Valid signature → handler runs; invalid or missing signature → 401 `invalid_webhook_signature` and no `idempotency_keys` row; a later valid delivery with the same event id is processed normally.
+- `@Idempotent({ keyFrom })` replays by partner id; missing or too long id → 400; the `Idempotency-Key` header is ignored; the same id on two routes doesn't collide.
+
+**`test/api.e2e-spec.ts`**
+- Full flow over HTTP, including paginated history and reconciliation.
+- `POST` without `Idempotency-Key` → 400.
+- Retry with the same key → same status and body, `Idempotent-Replayed: true`, no double effect.
+- Same key with a different body → 422 `idempotency_key_reused`.
+- Two identical parallel requests with the same key → same id, one effect.
+- A business error retried → same 422 with `Idempotent-Replayed: true`.
+- `amount_cents` = `10.5`, `-100`, `0`, `"100"`, over the max, or `null` → 400 `invalid_request`.
+- A validation error doesn't consume the key.
+- Unknown fields, bad UUIDs and invalid owners → 400; missing resources → 404; duplicate wallet → 409.
+- `GET /wallets/:owner` shows `owed_cents` from the receivable.
+- The docs site is served at `/` and by clean URL, the demo as a static page, hashed assets with immutable caching, and API routes still win when no file matches.
+
+**`test/load.e2e-spec.ts`**
+- A small run of the load simulator keeps every invariant under concurrent, conflicting requests.
+
+## Load simulation
+
+`scripts/load.ts` hammers a running API with concurrent, conflicting requests and then checks that
+no money was lost or created. It has no dependencies (Node 22.18+ runs the `.ts` file directly).
+
+```bash
+pnpm start:dev                                   # in another terminal
+pnpm load --requests 2000 --concurrency 100      # flags: --url --wallets --start-cents --max-amount-cents --seed
+```
+
+It funds a few wallets, then mixes transfers between them in both directions (lock contention,
+overdrafts), holds that are released or captured, and the same request sent twice in parallel with
+one `Idempotency-Key`. It exits non-zero unless all of these hold: no 5xx, no negative balance,
+wallet totals + captured = funded, every duplicate pair got the same response, and
+`/admin/reconciliation` is ok. The JSON report includes p50/p95/p99 latency per operation and a
+count per outcome (`201`, `422 insufficient_funds`, …). The demo's stress test runs the same idea
+from the browser.
+
 ---
 
 ## Manual test cases

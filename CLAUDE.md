@@ -17,7 +17,7 @@ no partial writes, idempotent requests, reconciliation).
 - `TransactionHost` (AsyncLocalStorage): services use `this.tx.db`; GETs wrap
   in `tx.run()`, POSTs run inside the `IdempotencyInterceptor` transaction.
 - Wallet = 3 accounts per owner (`pending`, `available`, `held`). Deposits
-  (ACH), holds, transfers, `/admin/reconciliation`. See README for the API.
+  (ACH), holds, transfers, `/admin/reconciliation`. API in `docs/architecture/api.md`.
 - Ledger foundation (`docs/requirements/00-ledger-foundation.md`): lazy
   `user:<owner>:receivable` (`ensureReceivable`, `owed_cents`),
   `LedgerService.lockBalances` / `reverseTransaction` / `lockJournal` (lock order:

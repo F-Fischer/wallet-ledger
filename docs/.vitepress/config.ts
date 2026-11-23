@@ -72,6 +72,8 @@ export default defineConfig({
               link: '/architecture/operations',
             },
             { text: 'Testing', link: '/architecture/testing' },
+            { text: 'API reference', link: '/architecture/api' },
+            { text: 'Deployment', link: '/architecture/deployment' },
           ],
         },
       ],
