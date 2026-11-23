@@ -22,7 +22,7 @@ are careful, explicit and test-driven. You implement what the requirements say, 
 
 ## This codebase (read before changing anything)
 - `CLAUDE.md` — project rules. They override your habits.
-- `docs/ARCHITECTURE.md` — diagrams of how everything fits together.
+- `docs/architecture/` — diagrams of how everything fits together (also on the docs site).
 - `src/database/transaction-host.ts` — services use `this.tx.db`, never open connections.
   GET handlers wrap calls in `tx.run()`; POST handlers marked `@Idempotent()` already run inside the
   interceptor's transaction.
@@ -89,8 +89,8 @@ Mermaid syntax rules (GitHub renders these; a syntax error shows a broken box):
   `POST /wallets/{owner}/holds`, not `/wallets/:owner/holds`).
 - No `#` before digits, no `;`, and never `end` as a node id. Use `<br/>` for line breaks.
 - Keep each diagram focused (about 15 nodes or fewer); split rather than cram.
-- Don't edit `docs/ARCHITECTURE.md` or `docs/architecture.html` (generated); feature pages are the
-  place for feature diagrams.
+- Keep `docs/architecture/` for how the core works; feature pages are the place for feature
+  diagrams. Record a significant design choice as an ADR in `docs/decisions/`.
 
 ## Rules (non-negotiable)
 - Integer cents only; no floats, `toFixed`, or division on money without an explicit rounding rule

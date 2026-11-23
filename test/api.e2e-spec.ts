@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import request from 'supertest';
+import { SITE_DIR } from '../src/site.js';
 import { TestContext, createTestContext } from './helpers.js';
 
 describe('API (e2e)', () => {
@@ -23,9 +26,29 @@ describe('API (e2e)', () => {
     await http().get('/health').expect(200, { ok: true });
   });
 
-  it('GET / serves the demo page', async () => {
-    const res = await http().get('/').expect(200).expect('content-type', /text\/html/);
+  // The site is built into public/ by `pnpm build` (CI builds before testing).
+  it('serves the docs site at / and its pages by clean URL', async () => {
+    const home = await http().get('/').expect(200).expect('content-type', /text\/html/);
+    expect(home.text).toContain('Wallet Ledger');
+    const demo = await http().get('/demo').expect(200).expect('content-type', /text\/html/);
+    expect(demo.text).toContain('/demo-app.html');
+  });
+
+  it('serves the demo app as a static page', async () => {
+    const res = await http().get('/demo-app.html').expect(200).expect('content-type', /text\/html/);
     expect(res.text).toContain('<title>Wallet Ledger</title>');
+  });
+
+  it('caches hashed site assets forever, pages not', async () => {
+    const asset = readdirSync(join(SITE_DIR, 'assets')).find((f) => f.endsWith('.css'));
+    const res = await http().get(`/assets/${asset}`).expect(200);
+    expect(res.headers['cache-control']).toContain('immutable');
+    const page = await http().get('/').expect(200);
+    expect(page.headers['cache-control']).not.toContain('immutable');
+  });
+
+  it('API routes still win over the site', async () => {
+    await http().get('/wallets/nobody').expect(404).expect('content-type', /json/);
   });
 
   it('full flow: wallet -> deposit -> settle -> hold -> capture -> history -> reconciliation', async () => {

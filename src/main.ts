@@ -1,8 +1,11 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
+import { serveSite } from './site.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true }); // HMAC webhook signatures need the exact bytes
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true }); // HMAC webhook signatures need the exact bytes
+  serveSite(app);
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }
