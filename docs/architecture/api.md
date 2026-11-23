@@ -1,17 +1,7 @@
 # API reference
 
-The HTTP API the demo and the tests use. Amounts are always integer cents.
-
-## Idempotency
-
-Every `POST` requires an `Idempotency-Key` header (at most 255 characters). Sending the same key
-again returns the stored response with `Idempotent-Replayed: true` and moves no money; the same key
-with a different body is `422 idempotency_key_reused`. How it works:
-[Idempotency](./idempotency) and [ADR 0005](/decisions/0005-idempotency-in-the-transaction).
-
-Partner webhooks (none yet) take the key from the partner's event id instead, with
-`@Idempotent({ keyFrom: (req) => ... })`, and verify an HMAC signature in a guard that runs before
-the idempotency interceptor (`src/webhooks/signature.ts`; the app is created with `rawBody: true`).
+Amounts are **integer cents**. Every `POST` needs an **`Idempotency-Key`** header. Errors are always
+`{ "error": { "code", "message", "details"? } }`. No authentication yet.
 
 ## Endpoints
 
@@ -32,13 +22,11 @@ the idempotency interceptor (`src/webhooks/signature.ts`; the app is created wit
 | GET | `/admin/reconciliation` | | `{ ok, system_sum_cents, mismatches }` |
 | GET | `/health` | | `{ ok: true }` |
 
-The settle and return endpoints stand in for bank webhooks. There is no authentication yet (see the
-[roadmap](/roadmap/)).
+Settle and return stand in for bank webhooks. Auth is on the [roadmap](/roadmap/).
 
 ## Errors
 
-Errors always look like `{ "error": { "code", "message", "details"? } }`. Codes and statuses live in
-`src/common/domain.error.ts`.
+Codes and statuses live in `src/common/domain.error.ts`.
 
 | Code | Status |
 |---|---|
@@ -48,6 +36,14 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`. Codes 
 | `wallet_exists`, `deposit_not_pending`, `hold_not_active`, `hold_expired`, `not_reversible` | 409 |
 | `insufficient_funds`, `idempotency_key_reused` | 422 |
 | `unbalanced_transaction`, `internal_error` | 500 |
+
+## Idempotency
+
+- Key ≤ 255 characters. Same key again → stored response + `Idempotent-Replayed: true`, no money moves.
+- Same key, different body → `422 idempotency_key_reused`.
+- Partner webhooks (none yet) take the key from the partner's event id (`@Idempotent({ keyFrom })`)
+  and verify an HMAC signature first (`src/webhooks/signature.ts`, app created with `rawBody: true`).
+- How it works: [Idempotency](./idempotency), [ADR 0005](/decisions/0005-idempotency-in-the-transaction).
 
 ## Behaviour worth knowing
 
@@ -61,5 +57,5 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`. Codes 
 - **Replayed bodies** have the same content as the original but may list keys in a different order,
   because `response_body` is stored as `jsonb`.
 
-`requests.http` in the repository has the full flow for an HTTP client (WebStorm, VS Code REST
-Client); [Testing](./testing#manual-test-cases) has the same flow with `curl`.
+Full flow to try: `requests.http` (WebStorm, VS Code REST Client) or the
+[`curl` session](./test-inventory#manual-test-cases).

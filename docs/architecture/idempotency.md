@@ -1,6 +1,6 @@
 # Idempotency
 
-The key, the response and the money movements are written in **one transaction**: either all of it commits, or none of it. If two requests arrive at once with the same key, the second one waits on the `INSERT` until the first commits, then returns the stored response.
+Key, response and money movements are written in **one transaction**: all or nothing. A retry with the same key gets the stored response and moves no money; a concurrent duplicate waits on the key's `INSERT`, then gets the same response.
 
 ```mermaid
 sequenceDiagram
@@ -35,4 +35,5 @@ sequenceDiagram
   end
 ```
 
-*An unexpected error (500) or a validation error (400) rolls back everything: the key is not stored and the client can retry with a fixed body. On top of that, every journal transaction has its own unique key, a second safety net in case the same entry is attempted twice.*
+- A **500** or a **400** (validation) rolls back everything: the key isn't stored, so the client can retry with a fixed body.
+- Second safety net: every journal transaction has its own unique key, so the same entry can't be written twice.

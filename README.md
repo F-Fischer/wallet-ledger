@@ -38,7 +38,7 @@ pnpm docs:dev                 # write docs with hot reload
 | [Architecture](docs/architecture/index.md) | Accounts, state machines, locking, idempotency, data model, request lifecycle |
 | [API reference](docs/architecture/api.md) | Endpoints, error codes, HTTP behaviour |
 | [Decisions](docs/decisions/index.md) | Why: double-entry, integer cents, no ORM, locking, serverless… |
-| [Testing](docs/architecture/testing.md) | What each test proves, the load simulator, manual `curl` cases |
+| [Testing](docs/architecture/testing.md) | Which test proves each guarantee; full [inventory](docs/architecture/test-inventory.md) with load simulator and `curl` cases |
 | [Deployment](docs/architecture/deployment.md) | Vercel + Neon on the free tier |
 | [Roadmap](docs/roadmap/index.md) | Done, next (a virtual debit card), parked; sized on an [effort scale](docs/roadmap/estimation.md) |
 

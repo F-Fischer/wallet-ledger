@@ -1,6 +1,6 @@
 # How it maps to the real world
 
-The API is the wallet core of a remittance app. Stripe pulls USD from the user's bank by ACH, which takes days and can bounce; a payout partner delivers the money abroad. This sequence shows which endpoint each real-world event calls.
+The API is the wallet core of a remittance app: **Stripe** pulls USD by ACH (takes days, can bounce) and a **payout partner** delivers it abroad. Each real-world event calls one endpoint:
 
 ```mermaid
 sequenceDiagram
