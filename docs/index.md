@@ -51,7 +51,7 @@ features:
 | [Architecture](/architecture/) | How the ledger works, with diagrams: accounts, state machines, locking, the request lifecycle inside Nest, and full traces of real operations |
 | [Decisions](/decisions/) | Architecture decision records: what was chosen, what was rejected and what it costs |
 | [Features](/features/ledger-foundation) | One page per shipped feature: the problem, how it works, commands to try it |
-| [Roadmap](/requirements/00-ledger-foundation) | Requirements for what comes next: FX remittances (USD → MXN) and debit card issuing |
+| [Roadmap](/roadmap/) | What's done, what's next (a virtual debit card) and what's parked, with every plan sized on a scale calibrated against shipped work |
 
 ## Stack
 

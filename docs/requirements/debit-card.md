@@ -1,6 +1,6 @@
 # Debit card issuing (virtual first, physical later)
 
-Status: draft for review · Owner: product · Last updated: 2026-11-10
+Status: **next** (phase 1, with a simulated processor) · Owner: product · Last updated: 2026-11-23
 Depends on: [`00-ledger-foundation.md`](00-ledger-foundation.md) (shared Phase 0 with
 [`fx-remittances.md`](fx-remittances.md)).
 
@@ -32,6 +32,10 @@ Whichever feature ships first builds it as `002_ledger_foundation.sql`; Phase 0 
   issued through **Lithic** (recommended, see 3.4) on a sponsor bank. It spends from
   `user:<owner>:available` through real-time authorization (Lithic Auth Stream Access, "ASA").
   Card authorizations reuse the hold pattern: `available → held`, then `held → settlement payable`.
+- **Phase 1 runs against a simulated processor** (see §13): it emits the same events Lithic would
+  (ASA authorization, incremental auth, reversal, clearing, force post, refund), signed and sent
+  through the webhook pipeline, so the feature can be built, tested and demoed without a partner
+  account. Swapping in Lithic's sandbox is a later, separate task.
 - **Business reason**: interchange revenue (about $4–6 per active card per month, an assumption)
   with almost no marginal cost per user. Money stays in the wallet longer (retention, float), and
   people who have a card are more likely to use the wallet as their main account.
@@ -731,13 +735,50 @@ events with decline reasons.
 
 ## 13. Rollout
 
-| Phase | Builds | Proves | Flag | Effort (1 engineer, estimate) |
+Sizes use the project's [effort scale](../roadmap/estimation.md): relative to work already merged,
+not calendar time.
+
+| Phase | Builds | Proves | Flag | Size |
 |---|---|---|---|---|
-| 0. Foundation (shared with FX, skip if FX shipped first) | Everything in [`00-ledger-foundation.md`](00-ledger-foundation.md) | Ledger primitives work with the existing tests green | none | 3–4 days |
-| 1. Virtual card, sandbox → employees | cards lifecycle, embed session, ASA, mirror for every 6.3 row 1–13, limits/MCC/country rules, R1–R3 | Money is always correct under retries, races and every lifecycle event (use Lithic sandbox simulations) | `cards.enabled` per owner allowlist | 2–3 weeks |
-| 2. Beta (≈ 500 users) | disputes + Reg E deadlines, settlement ingest/paid, interchange accrual, R4–R8, velocity/auto-freeze, receivable sweep/write-off | Unit economics (interchange share actually received), loss rate, approval rate ≥ 97%, zero missed Reg E deadlines | `cards.enabled` percentage | 2–3 weeks |
-| 3. Physical card + ATM | physical issue/ship/activate, PIN embed, ATM auths, ATM fee (rows 22–23), balance inquiry | ATM demand and fee acceptance; physical card payback | `cards.physical` | 2–3 weeks |
+| 0. Foundation | Everything in [`00-ledger-foundation.md`](00-ledger-foundation.md) | Ledger primitives work with the existing tests green | none | **Done** ([#1](https://github.com/F-Fischer/wallet-ledger/pull/1)) |
+| 1. Virtual card, **simulated processor** | cards lifecycle, authorization, mirror for 6.3 rows 1–13, limits/MCC/country rules, R1–R3, a processor simulator, demo panel | Money is always correct under retries, races and every lifecycle event | `cards.enabled` per owner allowlist | ≈ 4 × L (14 tasks, below) |
+| 1b. Lithic sandbox | replace the simulator with Lithic's ASA and event webhooks, embed session for PAN/CVV | The mirror holds against a real processor's events | same | L (to size when phase 1 is done) |
+| 2. Beta (≈ 500 users) | disputes + Reg E deadlines, settlement ingest/paid, interchange accrual, R4–R8, velocity/auto-freeze, receivable write-off | Unit economics (interchange share actually received), loss rate, approval rate ≥ 97%, zero missed Reg E deadlines | `cards.enabled` percentage | to size |
+| 3. Physical card + ATM | physical issue/ship/activate, PIN embed, ATM auths, ATM fee (rows 22–23), balance inquiry | ATM demand and fee acceptance; physical card payback | `cards.physical` | to size |
 | 4. GA and nice-to-haves | partial approvals, Apple/Google Pay, dispute API automation, push notifications | | | later |
+
+### Phase 1 tasks
+
+Rows refer to the journal entries in §6.3.
+
+| # | Task | Rows | Size | Why this size |
+|---|---|---|---|---|
+| 1 | Settle the simulator's event contract (shapes, signing, ordering guarantees) | — | S | Documentation; fixes the events the rest of the phase consumes |
+| 2 | Migration: `cards`, `card_transactions`, `sys:card_settlement_payable` | — | S | Schema and accounts; nothing moves money yet |
+| 3 | Card lifecycle: issue, freeze, unfreeze, close, replace | — | M | A state machine and five idempotent endpoints, no money |
+| 4 | Real-time authorization against `available`, incremental authorization | 1, 2 | M | One money flow (`available → held`), but the core of the feature: racing authorizations |
+| 5 | Partial and full reversals, authorization expiry | 3, 4 | M | Amounts change on one hold; needs an expiry job |
+| 6 | Clearing: exact, lower, over-capture, partial and multiple clearings | 5, 6, 7, 7b, 8 | L | The hardest part: five variants, over-capture split between `available` and `receivable` with `lockBalances` |
+| 7 | Force posts and single-message authorizations | 9, 10 | M | Money with no prior hold; the shortfall goes to `receivable` |
+| 8 | Refunds and refund reversals | 11, 12 | S | Reuses task 7's patterns |
+| 9 | Receivable sweep when money lands in `available` | 13 | M | Triggered from other flows (deposits, refunds); concurrency |
+| 10 | Processor simulator: signed events through the webhook pipeline (`@Idempotent({ keyFrom })` + HMAC guard) | — | M | The first real webhook endpoint; retries and duplicate events |
+| 11 | Limits, MCC and country rules (R1–R3) | — | S | Checks inside authorization, no new journal shapes |
+| 12 | Concurrency and load tests for cards | — | M | Extends the load simulator: parallel authorizations and events |
+| 13 | Demo: card panel (issue, swipe, clear, refund) | — | M | A new panel in the existing demo |
+| 14 | Feature page and ADR (card holds kept apart from `holds`) | — | S | Docs with diagrams and verified `curl` commands |
+
+Delivered in four pull requests, each one mergeable on its own:
+
+| PR | Tasks | What it proves |
+|---|---|---|
+| 1 | 1, 2, 3, 10 | Cards exist and the simulator's events arrive signed, deduplicated and in order |
+| 2 | 4, 5, 11 | Authorizations reserve money correctly, including races, reversals and expiry |
+| 3 | 6, 7, 8, 9 | Every clearing and refund variant balances; nothing pushes a user balance negative |
+| 4 | 12, 13, 14 | It holds under load, it can be tried in the demo, and it's documented |
+
+Each merged PR records its estimated and actual size in the
+[calibration log](../roadmap/estimation.md#calibration-log).
 
 There is no existing data to migrate. Existing wallets get their receivable account lazily, when
 their first card is issued.

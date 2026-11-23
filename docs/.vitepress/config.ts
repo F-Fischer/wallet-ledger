@@ -41,7 +41,7 @@ export default defineConfig({
       { text: 'Architecture', link: '/architecture/' },
       { text: 'Decisions', link: '/decisions/' },
       { text: 'Features', link: '/features/ledger-foundation' },
-      { text: 'Roadmap', link: '/requirements/00-ledger-foundation' },
+      { text: 'Roadmap', link: '/roadmap/' },
     ],
     sidebar: {
       '/architecture/': [
@@ -110,19 +110,38 @@ export default defineConfig({
           ],
         },
       ],
-      '/requirements/': [
-        {
-          text: 'Requirements',
-          items: [
+      // Roadmap and the plans behind it share one sidebar.
+      ...Object.fromEntries(
+        ['/roadmap/', '/requirements/'].map((base) => [
+          base,
+          [
             {
-              text: 'Ledger foundation',
-              link: '/requirements/00-ledger-foundation',
+              text: 'Roadmap',
+              items: [
+                { text: 'Status', link: '/roadmap/' },
+                { text: 'Effort scale', link: '/roadmap/estimation' },
+              ],
             },
-            { text: 'FX remittances', link: '/requirements/fx-remittances' },
-            { text: 'Debit card', link: '/requirements/debit-card' },
+            {
+              text: 'Plans',
+              items: [
+                {
+                  text: 'Ledger foundation (done)',
+                  link: '/requirements/00-ledger-foundation',
+                },
+                {
+                  text: 'Debit card (next)',
+                  link: '/requirements/debit-card',
+                },
+                {
+                  text: 'FX remittances (parked)',
+                  link: '/requirements/fx-remittances',
+                },
+              ],
+            },
           ],
-        },
-      ],
+        ]),
+      ),
     },
     outline: { level: [2, 3] },
     search: { provider: 'local' },

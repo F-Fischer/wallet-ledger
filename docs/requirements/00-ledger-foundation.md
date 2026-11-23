@@ -1,6 +1,6 @@
 # Ledger foundation (shared Phase 0)
 
-Status: draft for review · Owner: engineering · Last updated: 2026-11-10
+Status: **done** ([#1](https://github.com/F-Fischer/wallet-ledger/pull/1), see [the feature page](../features/ledger-foundation.md)) · Owner: engineering · Last updated: 2026-11-23
 Used by: [`fx-remittances.md`](fx-remittances.md) and [`debit-card.md`](debit-card.md).
 
 Both features need the same ledger building blocks, and today the codebase has none of them. This
@@ -19,7 +19,8 @@ this phase**; the other one reuses it unchanged. Neither feature plan redefines 
 | Webhook signature guards + `rawBody` | payout partner webhooks | Lithic webhooks |
 | New error codes | both | both |
 
-Estimated effort: 3–4 days for one engineer. Exit criteria: the existing 42 tests stay green and every
+Size: **L**. This phase is the reference for L on the [effort scale](../roadmap/estimation.md); it was estimated at
+"3–4 days for one engineer" before the scale existed. Exit criteria: the existing 42 tests stay green and every
 item below has its own tests.
 
 ## 2. Migration numbering

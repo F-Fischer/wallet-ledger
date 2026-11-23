@@ -1,6 +1,6 @@
 # FX Remittances (USD → MXN) · Requirements
 
-Status: draft for review · Owner: product · Last updated: 2026-11-10
+Status: **parked** (see the [roadmap](../roadmap/index.md)) · Owner: product · Last updated: 2026-11-23
 Depends on: [`00-ledger-foundation.md`](00-ledger-foundation.md) (shared Phase 0 with [`debit-card.md`](debit-card.md)): account naming, reversal entries, per-user receivable, `lockBalances`, `@Idempotent({ keyFrom })` and webhook signature guards are defined there, not here.
 
 ## 1. Summary
@@ -9,7 +9,7 @@ Depends on: [`00-ledger-foundation.md`](00-ledger-foundation.md) (shared Phase 0
 - **Solution.** The sender asks for a **quote** (USD sent, fee, rate, MXN received, expiry). They **confirm** it, which reserves the USD with the existing **hold** primitive. A **payout partner** delivers MXN by **SPEI** (bank deposit to a CLABE) or **cash pickup**. Partner webhooks move the remittance to `delivered`, `failed`, `cancelled` or `refunded`.
 - **Ledger.** It stays **USD-only** in the MVP. MXN amounts and rates are stored on the quote as integer minor units and scaled integers. Revenue (fee + FX spread) is recognised in two new revenue accounts on delivery. Every movement is a balanced `LedgerService.postTransaction` call.
 - **Why.** Remittances are the core product (US→MX family remittances were USD 30.76B in 1H26 [S10]). The fee plus the FX spread is the main revenue line, and the current backend earns nothing.
-- **MVP size.** One engineer, three phases (~6–8 weeks). It reuses holds, idempotency, the ledger and reconciliation. New pieces: quotes, recipients, remittances, a partner client and a webhook endpoint.
+- **MVP size.** Three phases, roughly one XL and two L on the project's [effort scale](../roadmap/estimation.md) (§13). It reuses holds, idempotency, the ledger and reconciliation. New pieces: quotes, recipients, remittances, a partner client and a webhook endpoint.
 
 ## 2. Users and jobs to be done
 
@@ -594,11 +594,11 @@ Submit/retry a remittance, approve/reject a review, record partner funding, view
 
 | Phase | Scope | What it proves | Exit criteria |
 |---|---|---|---|
-| **0a · Shared ledger foundation** (≈3–4 days, skip if cards shipped first) | Everything in [`00-ledger-foundation.md`](00-ledger-foundation.md) | Shared primitives work | Foundation exit criteria |
-| **0b · Remittance foundations** (≈3 days) | Migration `00N_remittances`, SYS accounts, `holds.purpose`, `captureTo`, new error codes, `pricing.ts` with unit tests | The ledger can express every flow; generic holds are unaffected | All existing tests pass; pricing tests cover the rounding examples in §6.4 |
-| **1 · Simulated end to end** (≈2 weeks) | Sender profile + admin KYC, recipients (SPEI only), admin FX rates, quotes, confirm, admin submit with `FakePayoutPartner`, signed webhook endpoint, delivered/failed/refunded/cancelled, limits | Money flows balance in every path; idempotency and concurrency hold | Tests: every row of §7.2; parallel confirms vs limit; duplicate/out-of-order webhooks; `reconcile().ok` and §6.5 hold at the end of the suite |
-| **2 · Real partner sandbox** (≈2 weeks) | `HttpPayoutPartner` (fetch), partner rate API replaces admin rates, submission worker + sweeper, review queue, screening hook, cash pickup | Integration resilience (timeouts, retries, dedupe by reference) | 200 sandbox transfers with no reconciliation break; chaos test: kill the worker between accept and commit |
-| **3 · Beta** (≈2 weeks) | Partner reconciliation report, partner fundings, `payout.returned`, statement adjustments, EN/ES disclosures, ops alerts | Unit economics and ops readiness with real money | Employees, then a 1% allowlist in licensed states; 2 weeks with ≤ 2% failure, 0 unresolved breaks > 1 business day |
+| **0a · Shared ledger foundation** (done, [#1](https://github.com/F-Fischer/wallet-ledger/pull/1)) | Everything in [`00-ledger-foundation.md`](00-ledger-foundation.md) | Shared primitives work | Foundation exit criteria |
+| **0b · Remittance foundations** (S) | Migration `00N_remittances`, SYS accounts, `holds.purpose`, `captureTo`, new error codes, `pricing.ts` with unit tests | The ledger can express every flow; generic holds are unaffected | All existing tests pass; pricing tests cover the rounding examples in §6.4 |
+| **1 · Simulated end to end** (XL: split before starting) | Sender profile + admin KYC, recipients (SPEI only), admin FX rates, quotes, confirm, admin submit with `FakePayoutPartner`, signed webhook endpoint, delivered/failed/refunded/cancelled, limits | Money flows balance in every path; idempotency and concurrency hold | Tests: every row of §7.2; parallel confirms vs limit; duplicate/out-of-order webhooks; `reconcile().ok` and §6.5 hold at the end of the suite |
+| **2 · Real partner sandbox** (L) | `HttpPayoutPartner` (fetch), partner rate API replaces admin rates, submission worker + sweeper, review queue, screening hook, cash pickup | Integration resilience (timeouts, retries, dedupe by reference) | 200 sandbox transfers with no reconciliation break; chaos test: kill the worker between accept and commit |
+| **3 · Beta** (L) | Partner reconciliation report, partner fundings, `payout.returned`, statement adjustments, EN/ES disclosures, ops alerts | Unit economics and ops readiness with real money | Employees, then a 1% allowlist in licensed states; 2 weeks with ≤ 2% failure, 0 unresolved breaks > 1 business day |
 | **4 · Deferred** | Multi-currency treasury (§6.6), more corridors, cheaper funding | — | — |
 
 Feature flags (env, no new dependency): `REMITTANCES_ENABLED`, `REMITTANCES_OWNER_ALLOWLIST`, `REMITTANCES_STATES`, `REMITTANCES_SUBMISSION_PAUSED`, `QUOTE_TTL_SECONDS`, fee schedule. No existing data needs migrating.
