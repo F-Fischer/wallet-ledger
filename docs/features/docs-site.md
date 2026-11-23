@@ -34,6 +34,7 @@ flowchart LR
 | Static serving | `src/site.ts` | `useStaticAssets(public/, { extensions: ['html'] })`, used by `main.ts` and the e2e test app; hashed `assets/` get `immutable` caching |
 | Diagram zoom | `docs/.vitepress/theme/diagram-zoom.ts` | Click (or tap) a diagram to open it full screen: wheel, `+`/`-`/`0` keys, buttons or pinch to zoom, drag to pan, Esc to close |
 | Wide pages | `transformPageData` in `config.ts`, `theme/custom.css` | Architecture and feature pages (the ones with diagrams) get a column of up to 1100 px instead of 688 px; the outline aside shows only from 1800 px wide |
+| Link check | `scripts/check-site.mjs` (`pnpm docs:check`, in CI) | Reads the built HTML and fails on internal links to a missing page or a missing `#anchor`; VitePress' own check covers pages only |
 | Demo | `docs/public/demo-app.html`, `docs/demo.md` | The existing single-file demo, copied as is and embedded in an iframe at `/demo` |
 
 Only files that exist are served, so API routes are unaffected; a request for `/wallets/nobody`
@@ -105,6 +106,7 @@ curl -s http://localhost:3000/wallets/nobody
 | The demo is served as a static page | `api.e2e-spec.ts` › serves the demo app as a static page |
 | Hashed assets are cached forever, pages are not | `api.e2e-spec.ts` › caches hashed site assets forever, pages not |
 | API routes still answer when no file matches | `api.e2e-spec.ts` › API routes still win over the site |
+| Every internal link and anchor in the built site resolves | `pnpm docs:check` (CI step after `pnpm build`) |
 
 The e2e tests read `public/`, so they need `pnpm build` (or `pnpm docs:build`) first; CI builds
 before testing. The site was also crawled in Chromium (Playwright, not part of CI): all 31 pages

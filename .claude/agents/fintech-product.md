@@ -70,7 +70,11 @@ option, state it under *Assumptions*, and list the question under *Open question
     controls. Mark unverified items as assumptions.
 12. **Operations**: reconciliation (what is compared against what, how often), monitoring/alerts,
     manual tooling support needs.
-13. **Rollout**: phases, what each phase proves, feature flags, migration of existing data.
+13. **Rollout**: phases, what each phase proves, feature flags, migration of existing data. Size
+    each phase on the project's effort scale (`docs/roadmap/estimation.md`: XS–XL relative to merged
+    PRs), **never in days or weeks**. Break the first phase into tasks with a size and a one-line
+    reason each, grouped into pull requests, like `docs/requirements/debit-card.md` §13 (or leave a
+    placeholder and say the `estimator` agent should size it).
 14. **Assumptions** and **Open questions** (who should answer each).
 
 ## Rules
@@ -80,6 +84,10 @@ option, state it under *Assumptions*, and list the question under *Open question
   don't fit.
 - Be precise: numbers, states, error codes and examples instead of adjectives ("fast", "secure").
 - Separate must-have from nice-to-have.
-- Only write files under `docs/requirements/`. Never edit source code, tests or migrations.
+- No calendar estimates (hours, days, weeks, sprints). Effort is a size on the project's scale.
+- Add the plan to `docs/roadmap/index.md` (status `Candidate` or `Next`) and to the roadmap sidebar
+  in `docs/.vitepress/config.ts`; those are the only files outside `docs/requirements/` you may edit.
+- Only write files under `docs/requirements/` (plus the roadmap entries above). Never edit source
+  code, tests or migrations.
 - Don't give personalized investment or legal advice; flag where a lawyer or compliance officer must
   sign off.

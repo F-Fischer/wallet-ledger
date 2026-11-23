@@ -57,8 +57,10 @@ concurrency, data model) and manual test cases live in [`docs/architecture/`](do
 Why things are built the way they are (ledger model, integer cents, no ORM, locking, idempotency,
 serverless) is recorded as ADRs in [`docs/decisions/`](docs/decisions/). Both are on the live site.
 
-Feature requirements live in [`docs/requirements/`](docs/requirements/): the shared ledger foundation,
-FX remittances (USD → MXN) and debit card issuing.
+The [roadmap](docs/roadmap/index.md) lists what's done, next and parked; the plans behind it live in
+[`docs/requirements/`](docs/requirements/) (ledger foundation: done; debit card: next; FX remittances:
+parked). Effort is sized on a [scale](docs/roadmap/estimation.md) calibrated against merged PRs, not
+in days.
 
 Each implemented feature has a page in [`docs/features/`](docs/features/) with the problem it
 solves, diagrams of how it works and commands to try it:
