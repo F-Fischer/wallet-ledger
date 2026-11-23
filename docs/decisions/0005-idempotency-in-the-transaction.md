@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** The idempotency key, the stored response and the ledger entries are written in the request's own transaction.<br>
+> **Why:** A separate key store can move money and lose the response, or let two concurrent retries both pass.<br>
+> **Cost:** One extra row per `POST`, kept forever (no expiry yet).
+
 ## Context
 
 Networks fail after the server has done the work but before the client sees the answer. A client

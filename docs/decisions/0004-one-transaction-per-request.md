@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** `TransactionHost` keeps the request's transaction in `AsyncLocalStorage`; services read `this.tx.db`, which throws outside a transaction.<br>
+> **Why:** Every write of a request must commit or roll back together, and passing a client everywhere is easy to get wrong.<br>
+> **Cost:** One pooled connection per request, and an implicit context readers must know about.
+
 ## Context
 
 A transfer debits one wallet and credits another; settling a deposit updates the deposit row and

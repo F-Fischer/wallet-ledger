@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** VitePress builds `docs/` into `public/`, which the NestJS app serves next to the API.<br>
+> **Why:** The markdown in the repo stays the single source, with one deployment and one origin for the demo.<br>
+> **Cost:** A slightly longer build, and HTML pages served by the function rather than the CDN.
+
 ## Context
 
 This is a portfolio project: the design and its reasoning matter as much as the running API. That

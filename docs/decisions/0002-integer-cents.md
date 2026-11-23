@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** Amounts are integer cents everywhere: `bigint` columns, a driver parser that throws instead of rounding, `@IsInt` DTOs.<br>
+> **Why:** Floats drift by fractions of a cent, and a ledger that must sum to exactly zero can't tolerate that.<br>
+> **Cost:** Multi-currency and anything that divides money need explicit rounding rules.
+
 ## Context
 
 `0.1 + 0.2` is `0.30000000000000004` in JavaScript. Binary floating point can't represent most

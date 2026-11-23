@@ -7,10 +7,9 @@ aside: false
 
 <div class="demo-intro">
   <p>
-    Every button below is a real HTTP call to this deployment's API, backed by Postgres.
-    Create two wallets, deposit and settle, move money between them, then press
-    <strong>Replay</strong> in the HTTP log to send the same request again with the same
-    <code>Idempotency-Key</code>: it's marked <em>replayed</em> and no money moves.
+    Every button is a real call to this deployment's API. Create two wallets, deposit, settle,
+    transfer, then press <strong>Replay</strong> in the HTTP log: same <code>Idempotency-Key</code>,
+    marked <em>replayed</em>, no money moves.
     <a href="/demo-app.html" target="_blank" rel="noopener">Open full screen ↗</a>
   </p>
 </div>

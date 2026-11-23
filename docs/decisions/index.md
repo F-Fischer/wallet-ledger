@@ -1,8 +1,6 @@
 # Decisions
 
-Architecture decision records (ADRs): one page per significant choice, with the context that
-forced it, the options that lost, and what it costs. Code shows *what* the system does; these pages
-explain *why* it does it that way and what would have to change to decide otherwise.
+One page per significant choice: *why* the system works this way, what lost, and what it costs.
 
 | # | Decision | In one line |
 |---|---|---|
@@ -19,11 +17,11 @@ explain *why* it does it that way and what would have to change to decide otherw
 
 ## Format
 
-Each record has the same sections:
+Each record opens with a **Decision / Why / Cost** box, then:
 
 - **Context**: the problem and the forces at play.
 - **Decision**: what was chosen, concretely, with pointers into the code.
 - **Alternatives considered**: what was rejected, and why.
 - **Consequences**: what gets easier, what gets harder, and what would make us revisit it.
 
-A decision that changes gets a new record that supersedes the old one; old records are not rewritten.
+A changed decision gets a new record that supersedes the old one; old records aren't rewritten.
