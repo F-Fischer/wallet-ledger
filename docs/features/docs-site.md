@@ -32,6 +32,8 @@ flowchart LR
 | Site config | `docs/.vitepress/config.ts` | Nav, sidebars, local search, output to `public/`, GitHub-style heading ids, the `mermaid` fence |
 | Theme hook | `docs/.vitepress/theme/index.ts` | Draws Mermaid diagrams in the browser, importing Mermaid only on pages that have one; redraws on light/dark switch |
 | Static serving | `src/site.ts` | `useStaticAssets(public/, { extensions: ['html'] })`, used by `main.ts` and the e2e test app; hashed `assets/` get `immutable` caching |
+| Diagram zoom | `docs/.vitepress/theme/diagram-zoom.ts` | Click (or tap) a diagram to open it full screen: wheel, `+`/`-`/`0` keys, buttons or pinch to zoom, drag to pan, Esc to close |
+| Wide pages | `transformPageData` in `config.ts`, `theme/custom.css` | Architecture and feature pages (the ones with diagrams) get a column of up to 1100 px instead of 688 px; the outline aside shows only from 1800 px wide |
 | Demo | `docs/public/demo-app.html`, `docs/demo.md` | The existing single-file demo, copied as is and embedded in an iframe at `/demo` |
 
 Only files that exist are served, so API routes are unaffected; a request for `/wallets/nobody`
@@ -54,6 +56,10 @@ sequenceDiagram
 
 Mermaid is about 2 MB. A plugin was tried first, but it made **every** page preload about 50
 Mermaid chunks; the theme hook replaced it, and pages without diagrams load 3 modules.
+
+Mermaid shrinks a diagram to fit its column, so in VitePress' default 688 px column the wide
+sequence diagrams were drawn at about 60% of their size (~9 px text). On the wide pages they now
+render at 92–100% on a 1440 px screen, and any diagram can be opened full screen.
 
 Heading ids follow GitHub's algorithm (`## 11. Decisions` → `#11-decisions`), so links like
 `00-ledger-foundation.md#3-account-naming-convention` work both on GitHub and on the site.
@@ -103,7 +109,8 @@ curl -s http://localhost:3000/wallets/nobody
 The e2e tests read `public/`, so they need `pnpm build` (or `pnpm docs:build`) first; CI builds
 before testing. The site was also crawled in Chromium (Playwright, not part of CI): all 31 pages
 return 200, every internal link and `#anchor` resolves, every Mermaid diagram renders without a
-syntax error, no page scrolls sideways at 390 px, and the embedded demo creates a wallet, deposits
+syntax error, no page scrolls sideways at 390 px, diagrams open full screen and zoom with the wheel, buttons,
+keyboard and a two-finger pinch on a phone, and the embedded demo creates a wallet, deposits
 and settles against the API with the ledger reconciling.
 
 ## Limitations

@@ -28,6 +28,13 @@ export default defineConfig({
   lastUpdated: false,
   // Docs that only make sense in the repo, not on the site.
   srcExclude: ['**/README.md'],
+  // Architecture and feature pages carry the diagrams: give them a wider
+  // column (theme/custom.css, `.Layout.wide`).
+  transformPageData(pageData) {
+    if (/^(architecture|features)\//.test(pageData.relativePath)) {
+      pageData.frontmatter.pageClass ??= 'wide';
+    }
+  },
   themeConfig: {
     nav: [
       { text: 'Demo', link: '/demo' },
@@ -72,6 +79,24 @@ export default defineConfig({
               link: '/architecture/operations',
             },
             { text: 'Testing', link: '/architecture/testing' },
+          ],
+        },
+      ],
+      '/decisions/': [
+        {
+          text: 'Decisions',
+          items: [
+            { text: 'All records', link: '/decisions/' },
+            { text: '0001 · Double-entry ledger', link: '/decisions/0001-double-entry-ledger' },
+            { text: '0002 · Integer cents', link: '/decisions/0002-integer-cents' },
+            { text: '0003 · Explicit SQL, no ORM', link: '/decisions/0003-explicit-sql-no-orm' },
+            { text: '0004 · One transaction per request', link: '/decisions/0004-one-transaction-per-request' },
+            { text: '0005 · Idempotency in the transaction', link: '/decisions/0005-idempotency-in-the-transaction' },
+            { text: '0006 · Locks in a fixed order', link: '/decisions/0006-pessimistic-locks-in-fixed-order' },
+            { text: '0007 · Append-only, fix by reversal', link: '/decisions/0007-append-only-reversals' },
+            { text: '0008 · Serverless on Vercel', link: '/decisions/0008-serverless-on-vercel' },
+            { text: '0009 · Tests on real Postgres', link: '/decisions/0009-tests-against-real-postgres' },
+            { text: '0010 · Docs site with VitePress', link: '/decisions/0010-docs-site-vitepress' },
           ],
         },
       ],

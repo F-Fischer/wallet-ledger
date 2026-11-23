@@ -15,3 +15,113 @@
   color: inherit;
   font-size: inherit;
 }
+
+/* Diagrams open full screen on click (theme/diagram-zoom.ts). */
+.vp-doc pre.mermaid[data-processed='true'] {
+  position: relative;
+  cursor: zoom-in;
+}
+.vp-doc pre.mermaid[data-processed='true']::after {
+  content: 'Click to enlarge';
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--vp-c-text-3);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.vp-doc pre.mermaid[data-processed='true']:hover::after,
+.vp-doc pre.mermaid[data-processed='true']:focus-within::after {
+  opacity: 1;
+}
+@media (hover: none) {
+  .vp-doc pre.mermaid[data-processed='true']::after {
+    content: 'Tap to enlarge';
+    opacity: 1;
+  }
+}
+
+.dz-open,
+.dz-open body {
+  overflow: hidden;
+}
+.dz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--vp-c-bg);
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+  outline: none;
+}
+.dz-overlay:active {
+  cursor: grabbing;
+}
+.dz-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.dz-stage svg {
+  display: block;
+  max-width: none !important;
+}
+.dz-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background: var(--vp-c-bg-soft);
+  box-shadow: var(--vp-shadow-3);
+  cursor: default;
+}
+.dz-button {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+.dz-button:hover {
+  background: var(--vp-c-default-soft);
+}
+.dz-scale {
+  min-width: 52px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vp-c-text-2);
+}
+
+/* Wide pages (architecture, features: the ones with diagrams). The default
+   column is 688px; Mermaid shrinks a diagram to fit it, so wide sequence
+   diagrams ended up with ~9px text. The whole layout is also allowed past
+   VitePress' 1440px cap, and the outline aside only shows once there's room
+   for both it and a full-width column. */
+.Layout.wide {
+  /* never past the viewport: VitePress sizes the sidebar from this value */
+  --vp-layout-max-width: min(100vw, 1920px);
+}
+@media (min-width: 960px) {
+  .Layout.wide .VPDoc .content-container,
+  .Layout.wide .VPDoc.has-aside .content-container {
+    max-width: 1100px;
+  }
+}
+@media (min-width: 1280px) and (max-width: 1799px) {
+  .Layout.wide .VPDoc .aside {
+    display: none;
+  }
+}

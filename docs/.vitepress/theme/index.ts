@@ -1,6 +1,7 @@
 import DefaultTheme from 'vitepress/theme';
 import type { Theme } from 'vitepress';
 import { inBrowser } from 'vitepress';
+import { setupDiagramZoom } from './diagram-zoom.js';
 import './custom.css';
 
 /**
@@ -37,6 +38,7 @@ export default {
       queue = queue.then(renderMermaid).catch((err) => console.error(err));
     };
     router.onAfterRouteChange = () => setTimeout(render);
+    setupDiagramZoom();
     window.addEventListener('load', render);
     new MutationObserver(render).observe(document.documentElement, {
       attributes: true,
