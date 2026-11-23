@@ -1,8 +1,8 @@
 name: Claude review
 
 # Independent review of every PR, from a fresh context. The local review
-# (money-reviewer + /code-review, enforced by .claude/hooks/require-review.mjs)
-# fixes problems before the PR exists; this one only comments.
+# (money-reviewer + /code-review, approved by the user with the local-review-ok
+# label, see review-gate.yml) fixes problems; this one only comments.
 
 on:
   pull_request:
