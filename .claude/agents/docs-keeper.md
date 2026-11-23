@@ -32,7 +32,8 @@ does, so a stale or wrong claim is a bug. You report; you don't fix.
 4. **Wiring.**
    - Every page under `docs/architecture/`, `docs/decisions/`, `docs/features/`, `docs/roadmap/`
      and `docs/requirements/` appears in the matching sidebar in `docs/.vitepress/config.ts`.
-   - Every feature page is linked from `README.md`; every ADR is in `docs/decisions/index.md`.
+   - Every feature page is linked from the *Features* line in `README.md`; every ADR is in
+     `docs/decisions/index.md`. The README stays a short portal: detail belongs on the site.
    - Roadmap statuses in `docs/roadmap/index.md` match the plans' `Status:` lines and what's merged.
    - A significant design change in the diff has an ADR (`CLAUDE.md`, Git workflow).
 5. **Build and links.** Run `pnpm docs:build` (fails on dead page links and config errors), then

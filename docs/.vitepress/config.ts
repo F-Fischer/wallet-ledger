@@ -28,13 +28,6 @@ export default defineConfig({
   lastUpdated: false,
   // Docs that only make sense in the repo, not on the site.
   srcExclude: ['**/README.md'],
-  // Architecture and feature pages carry the diagrams: give them a wider
-  // column (theme/custom.css, `.Layout.wide`).
-  transformPageData(pageData) {
-    if (/^(architecture|features)\//.test(pageData.relativePath)) {
-      pageData.frontmatter.pageClass ??= 'wide';
-    }
-  },
   themeConfig: {
     nav: [
       { text: 'Demo', link: '/demo' },
@@ -79,6 +72,8 @@ export default defineConfig({
               link: '/architecture/operations',
             },
             { text: 'Testing', link: '/architecture/testing' },
+            { text: 'API reference', link: '/architecture/api' },
+            { text: 'Deployment', link: '/architecture/deployment' },
           ],
         },
       ],
@@ -144,7 +139,12 @@ export default defineConfig({
       ),
     },
     outline: { level: [2, 3] },
-    search: { provider: 'local' },
+    search: {
+      provider: 'local',
+      options: {
+        translations: { button: { buttonText: 'Search docs', buttonAriaLabel: 'Search docs' } },
+      },
+    },
     socialLinks: [
       { icon: 'github', link: 'https://github.com/F-Fischer/wallet-ledger' },
     ],
