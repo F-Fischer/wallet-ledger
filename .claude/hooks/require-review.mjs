@@ -27,15 +27,20 @@ try {
   if (tool === 'mcp__github__create_pull_request' && input.draft !== true) {
     block('Pull request blocked: open it as a draft (draft: true). See CLAUDE.md, Git workflow.');
   }
-  if (ghCommand(command, 'pr\\s+create') && !/\s(--draft|-d)(\s|$)/.test(`${command} `)) {
+  // Quoted arguments (titles, bodies) can't carry the flag.
+  const unquoted = command.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""');
+  if (ghCommand(command, 'pr\\s+create') && !/\s(--draft|-d)(\s|$)/.test(`${unquoted} `)) {
     block('Pull request blocked: open it as a draft (--draft). See CLAUDE.md, Git workflow.');
   }
 
-  // 2. Only the user adds the approval label.
+  // 2. Only the user adds the approval label. Mentioning it (a comment asking the
+  //    user to add it, a PR body explaining it) is fine.
   const labelTools = ['mcp__github__issue_write', 'mcp__github__update_pull_request'];
   const addsLabel =
-    (labelTools.includes(tool) && JSON.stringify(input).includes(LABEL)) ||
-    (/(^|[;&|(]\s*)gh\s/.test(command) && command.includes(LABEL));
+    (labelTools.includes(tool) && Array.isArray(input.labels) && input.labels.includes(LABEL)) ||
+    (ghCommand(command, 'pr\\s+edit') && new RegExp(`--add-label[=\\s]+\\S*${LABEL}`).test(command)) ||
+    (ghCommand(command, 'issue\\s+edit') && new RegExp(`--add-label[=\\s]+\\S*${LABEL}`).test(command)) ||
+    (ghCommand(command, 'api') && /labels/.test(command) && command.includes(LABEL));
   if (addsLabel) {
     block(
       `Blocked: the "${LABEL}" label is the user's approval of the local review. ` +

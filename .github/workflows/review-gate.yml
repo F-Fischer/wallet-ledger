@@ -10,6 +10,7 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
 
 permissions:
+  contents: read
   pull-requests: write
   issues: write
 
@@ -30,10 +31,15 @@ jobs:
           --description "The user approved the local review of the current code"
           2>/dev/null || true
 
+      # Add the label after this run has failed: a label added while it's still
+      # running can be removed by it.
       - name: A new push needs a new approval
         if: github.event.action == 'synchronize'
+        env:
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'local-review-ok') }}
         run: |
-          gh pr edit "$PR" --remove-label "$LABEL" 2>/dev/null || true
+          # No `|| true`: if removal fails, a stale approval would pass the next label event.
+          if [ "$HAS_LABEL" = "true" ]; then gh pr edit "$PR" --remove-label "$LABEL"; fi
           echo "::error::New commits since the approval: review locally again and re-add '$LABEL'."
           exit 1
 

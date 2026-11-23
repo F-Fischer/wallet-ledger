@@ -35,12 +35,20 @@ describe('require-review hook', () => {
     expect(blocked.stderr).toContain('draft');
     expect(run(mcp('create_pull_request', { head: 'x', draft: false })).status).toBe(2);
     expect(run(bash(`${PR} --fill`)).status).toBe(2);
+    expect(run(bash(`${PR} --title "handle -d option" --body x`)).status).toBe(2);
+  });
+
+  it('allows mentioning the label in comments and PR bodies', () => {
+    expect(run(bash(`gh pr comment 11 --body "Review done: add ${LABEL}"`)).status).toBe(0);
+    expect(run(mcp('update_pull_request', { body: `Add the ${LABEL} label` })).status).toBe(0);
   });
 
   it('blocks Claude from adding the approval label', () => {
     expect(run(mcp('issue_write', { method: 'update', labels: [LABEL] })).status).toBe(2);
     expect(run(mcp('update_pull_request', { labels: [LABEL] })).status).toBe(2);
     expect(run(bash(`gh pr edit 12 --add-label ${LABEL}`)).status).toBe(2);
+    expect(run(bash(`gh pr edit 12 --add-label docs,${LABEL}`)).status).toBe(2);
+    expect(run(bash(`gh api repos/o/r/issues/12/labels -f "labels[]=${LABEL}"`)).status).toBe(2);
     expect(run(mcp('issue_write', { method: 'update', labels: ['docs'] })).status).toBe(0);
   });
 
