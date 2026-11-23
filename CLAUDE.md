@@ -38,8 +38,13 @@ no partial writes, idempotent requests, reconciliation).
   scale (`docs/roadmap/estimation.md`, XS–XL relative to merged PRs). Never
   estimate in days or weeks.
 - When the phase is done: push the branch and open a pull request against
-  `main`. CI (`.github/workflows/ci.yml`) must be green, and changes to money
-  logic get a `money-reviewer` pass before asking for review. Run `docs-keeper`
+  `main`. Before opening it, review `HEAD` locally: `money-reviewer` (if the
+  diff touches money logic) and `/code-review`, fix what they find, then
+  `git rev-parse HEAD > .claude/.review-ok`. A hook
+  (`.claude/hooks/require-review.mjs`) blocks creating the PR otherwise; a new
+  commit needs a new review. On GitHub, `.github/workflows/claude-review.yml`
+  reviews the PR again from a fresh context and comments inline. CI
+  (`.github/workflows/ci.yml`) must be green. Run `docs-keeper`
   before opening the PR and `preview-verifier` on the Vercel preview after
   pushing. After merge, `estimator` records the actual size in the
   calibration log.

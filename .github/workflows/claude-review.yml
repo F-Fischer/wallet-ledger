@@ -1,0 +1,61 @@
+name: Claude review
+
+# Independent review of every PR, from a fresh context. The local review
+# (money-reviewer + /code-review, enforced by .claude/hooks/require-review.mjs)
+# fixes problems before the PR exists; this one only comments.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # On a new push, review only the new commits; otherwise the whole PR.
+      DIFF_BASE: ${{ github.event.action == 'synchronize' && github.event.before || format('origin/{0}', github.base_ref) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            Scope: `git diff ${{ env.DIFF_BASE }}...HEAD`. If that base is not reachable (force push),
+            use `git diff origin/${{ github.base_ref }}...HEAD`.
+
+            You are a second, independent reviewer: the author already ran a local review, so focus
+            on what an author tends to miss (edge cases, concurrency, partial writes, idempotency,
+            the rules in CLAUDE.md).
+
+            1. If the diff touches src/, migrations/ or tests of money logic, use the money-reviewer
+               subagent. Tell it not to run `pnpm test`: CI already does.
+            2. Do a general code review of the same diff: correctness bugs and CLAUDE.md rules.
+               Don't comment on style that oxlint would catch.
+            3. For each problem, as soon as you confirm it, leave an inline comment on the exact line
+               with mcp__github_inline_comment__create_inline_comment. Prefix it with [money] or
+               [code]; include the scenario that breaks it (inputs -> wrong result) and the fix in
+               one sentence. Don't repeat a finding that is already commented on this PR
+               (check with `gh pr view ${{ github.event.pull_request.number }} --comments`).
+            4. Finish with one summary comment (`gh pr comment`) listing the findings, most severe
+               first. If there are none, say so in one line.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Task,mcp__github_inline_comment__create_inline_comment,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"
