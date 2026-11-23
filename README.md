@@ -251,6 +251,12 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`.
 - Unknown fields, bad UUIDs and invalid owners → 400; missing resources → 404; duplicate wallet → 409.
 - `GET /wallets/:owner` shows `owed_cents` from the receivable.
 
+**`test/require-review.spec.ts`** (the PreToolUse hook that blocks opening a PR before the local review)
+- Ignores unrelated tool calls and commands that only mention the PR command.
+- Blocks until the commit is in `.claude/.review-ok`, then allows the PR; blocks again after a new commit or with uncommitted changes.
+- For the GitHub MCP tool, checks the PR's `head` branch, not local HEAD.
+- Blocks instead of failing open when the hook can't run.
+
 ## Out of scope
 
 Orchestrator/saga, FX, real payouts, real Stripe, authentication, multi-currency, ACH returned

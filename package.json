@@ -2,7 +2,7 @@
   "name": "wallet-ledger",
   "version": "0.0.1",
   "description": "",
-  "author": "",
+  "author": "Francisco Fischer",
   "private": true,
   "license": "MIT",
   "type": "module",

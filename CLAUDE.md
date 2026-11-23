@@ -7,7 +7,7 @@ no partial writes, idempotent requests, reconciliation).
 ## Commands
 - `pnpm db:up` — Postgres 16 via Docker (`wallet` + `wallet_test`)
 - `pnpm start:dev` — run the API on http://localhost:3000 (applies migrations)
-- `pnpm test` — ledger + wallet tests (Vitest, real Postgres `wallet_test`)
+- `pnpm test` — ledger, wallet and tooling tests (Vitest, real Postgres `wallet_test`)
 - `pnpm test:e2e` — HTTP tests (Vitest + supertest)
 - `pnpm typecheck` · `pnpm lint` — oxlint · `pnpm build` — compile
 

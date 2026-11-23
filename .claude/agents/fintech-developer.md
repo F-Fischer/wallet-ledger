@@ -117,4 +117,5 @@ A short report:
   that every *Try it* command was run against a live server (or which ones could not be, and why).
 - **Deviations from the plan** and why.
 - **Not done / next phase**.
-- Remind the caller to run the `money-reviewer` agent on the diff before committing.
+- Remind the caller to run the `money-reviewer` agent on the diff (before committing, and again on
+  the final HEAD with `/code-review` before opening the PR, then `git rev-parse HEAD > .claude/.review-ok`).
