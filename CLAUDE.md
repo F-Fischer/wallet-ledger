@@ -26,16 +26,23 @@ no partial writes, idempotent requests, reconciliation).
   No partner webhook endpoints yet.
 - Docs site: VitePress builds `docs/` into `public/` (gitignored) in `pnpm build`; the API serves it
   (`src/site.ts`). `pnpm docs:dev` for writing. Architecture in `docs/architecture/`, ADRs in
-  `docs/decisions/`. E2E tests need `public/` built.
+  `docs/decisions/`, roadmap and effort scale in `docs/roadmap/`. E2E tests need
+  `public/` built; `pnpm docs:check` checks links and anchors in it.
 
 ## Git workflow
 - Never commit or push to `main`. Every change goes on its own branch
   (`feat/<name>`, `fix/<name>`, `chore/<name>`, `docs/<name>`); one branch per
   requirements phase.
 - Commit small, working slices (each with its tests) on the branch.
+- Before starting a phase, the `estimator` agent sizes its tasks on the effort
+  scale (`docs/roadmap/estimation.md`, XS–XL relative to merged PRs). Never
+  estimate in days or weeks.
 - When the phase is done: push the branch and open a pull request against
   `main`. CI (`.github/workflows/ci.yml`) must be green, and changes to money
-  logic get a `money-reviewer` pass before asking for review.
+  logic get a `money-reviewer` pass before asking for review. Run `docs-keeper`
+  before opening the PR and `preview-verifier` on the Vercel preview after
+  pushing. After merge, `estimator` records the actual size in the
+  calibration log.
 - Every feature PR includes its page in `docs/features/<feature>.md` (problem it
   solves, Mermaid diagrams, `curl` commands verified against a live server),
   linked from the README and the site sidebar (`docs/.vitepress/config.ts`).
