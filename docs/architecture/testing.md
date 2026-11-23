@@ -61,11 +61,11 @@ flowchart TB
 **`test/signature.spec.ts`**
 - `verifyHmacSignature` accepts the hex HMAC-SHA256 of the exact bytes and rejects other bodies, secrets, missing/truncated/non-hex signatures, and a missing body or secret.
 
-**`test/require-review.spec.ts`** (the PreToolUse hook that blocks opening a PR before the local review)
-- Ignores unrelated tool calls and commands that only mention the PR command.
-- Blocks until the commit is in `.claude/.review-ok`, then allows the PR; blocks again after a new commit or with uncommitted changes.
-- For the GitHub MCP tool, checks the PR's `head` branch, not local HEAD.
-- Blocks instead of failing open when the hook can't run.
+**`test/require-review.spec.ts`** (the PreToolUse hook behind the review flow)
+- Ignores unrelated tool calls and commands that only mention the PR command or the label.
+- Allows only draft pull requests, through the GitHub MCP tool or `gh`.
+- Blocks Claude from adding the `local-review-ok` label, the user's approval of the local review.
+- Blocks instead of failing open when it can't parse its input.
 
 **`test/webhooks.e2e-spec.ts`** (test-only webhook controller)
 - Valid signature → handler runs; invalid or missing signature → 401 `invalid_webhook_signature` and no `idempotency_keys` row; a later valid delivery with the same event id is processed normally.

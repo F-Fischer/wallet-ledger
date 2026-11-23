@@ -1,0 +1,55 @@
+name: Review gate
+
+# Passes only when the PR carries the `local-review-ok` label: the user's
+# approval that the local review (money-reviewer + /code-review) was done on the
+# current code. A new push removes the label, so every push needs a fresh
+# approval. Make `review-gate` a required check in the branch protection of main.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  LABEL: local-review-ok
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  PR: ${{ github.event.pull_request.number }}
+
+jobs:
+  review-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Make sure the label exists
+        run: >-
+          gh label create "$LABEL" --color 0E8A16
+          --description "The user approved the local review of the current code"
+          2>/dev/null || true
+
+      # Add the label after this run has failed: a label added while it's still
+      # running can be removed by it.
+      - name: A new push needs a new approval
+        if: github.event.action == 'synchronize'
+        env:
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'local-review-ok') }}
+        run: |
+          # No `|| true`: if removal fails, a stale approval would pass the next label event.
+          if [ "$HAS_LABEL" = "true" ]; then gh pr edit "$PR" --remove-label "$LABEL"; fi
+          echo "::error::New commits since the approval: review locally again and re-add '$LABEL'."
+          exit 1
+
+      - name: Require the approval label
+        if: github.event.action != 'synchronize'
+        env:
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'local-review-ok') }}
+        run: |
+          if [ "$HAS_LABEL" != "true" ]; then
+            echo "::error::Waiting for the user to add '$LABEL' after the local review."
+            exit 1
+          fi
+          echo "Local review approved."

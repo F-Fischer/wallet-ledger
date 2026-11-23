@@ -1,72 +1,54 @@
 #!/usr/bin/env node
-// PreToolUse hook: block opening a pull request until the commit it would open
-// has been reviewed locally (money-reviewer + /code-review). The review step
-// records the reviewed commit in .claude/.review-ok (gitignored); a new commit
-// invalidates it. Exit 2 blocks the tool call; any unexpected error also blocks
-// (exit 1 would let the PR through).
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+// PreToolUse hook for the review flow (see CLAUDE.md, Git workflow):
+// - Claude opens pull requests only as drafts.
+// - Claude never adds the `local-review-ok` label: that label is the user's
+//   approval of the local review, and the `review-gate` check needs it to pass.
+// Exit 2 blocks the tool call; any unexpected error also blocks (exit 1 would
+// let the call through).
+
+const LABEL = 'local-review-ok';
 
 const block = (message) => {
   console.error(message);
   process.exit(2);
 };
 
-const git = (cwd, ...args) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-
-const rev = (cwd, ref) => {
-  try {
-    return git(cwd, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`);
-  } catch {
-    return '';
-  }
-};
+// A command that starts with gh (or follows ; & | or a subshell), not a mention in text.
+const ghCommand = (command, sub) =>
+  new RegExp(`(^|[;&|(]\\s*)gh\\s+${sub}\\b`).test(command);
 
 try {
   let raw = '';
   for await (const chunk of process.stdin) raw += chunk;
-  const input = JSON.parse(raw || '{}');
+  const { tool_name: tool, tool_input: input = {} } = JSON.parse(raw || '{}');
+  const command = tool === 'Bash' ? String(input.command ?? '') : '';
 
-  const isMcp = input.tool_name === 'mcp__github__create_pull_request';
-  // Only a command that starts with gh (or follows ; & | or a subshell), not a mention in text.
-  const isGh =
-    input.tool_name === 'Bash' &&
-    /(^|[;&|(]\s*)gh\s+pr\s+create\b/.test(input.tool_input?.command ?? '');
-  if (!isMcp && !isGh) process.exit(0);
-
-  const root = git(process.env.CLAUDE_PROJECT_DIR || process.cwd(), 'rev-parse', '--show-toplevel');
-
-  let target;
-  if (isMcp) {
-    // The PR is opened from a branch on GitHub, not from local HEAD.
-    const head = String(input.tool_input?.head ?? '').split(':').pop();
-    if (!head) block('Pull request blocked: no head branch given.');
-    target = rev(root, `origin/${head}`) || rev(root, head);
-    if (!target) {
-      block(`Pull request blocked: branch "${head}" not found locally; fetch or push it first.`);
-    }
-  } else {
-    if (git(root, 'status', '--porcelain')) {
-      block('Pull request blocked: uncommitted changes. Commit them and review again.');
-    }
-    target = rev(root, 'HEAD');
+  // 1. Pull requests start as drafts.
+  if (tool === 'mcp__github__create_pull_request' && input.draft !== true) {
+    block('Pull request blocked: open it as a draft (draft: true). See CLAUDE.md, Git workflow.');
+  }
+  // Quoted arguments (titles, bodies) can't carry the flag.
+  const unquoted = command.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""');
+  if (ghCommand(command, 'pr\\s+create') && !/\s(--draft|-d)(\s|$)/.test(`${unquoted} `)) {
+    block('Pull request blocked: open it as a draft (--draft). See CLAUDE.md, Git workflow.');
   }
 
-  const marker = join(root, '.claude', '.review-ok');
-  const reviewed = existsSync(marker) ? readFileSync(marker, 'utf8').trim() : '';
-  if (reviewed && reviewed === target) process.exit(0);
+  // 2. Only the user adds the approval label. Mentioning it (a comment asking the
+  //    user to add it, a PR body explaining it) is fine.
+  const labelTools = ['mcp__github__issue_write', 'mcp__github__update_pull_request'];
+  const addsLabel =
+    (labelTools.includes(tool) && Array.isArray(input.labels) && input.labels.includes(LABEL)) ||
+    (ghCommand(command, 'pr\\s+edit') && new RegExp(`--add-label[=\\s]+\\S*${LABEL}`).test(command)) ||
+    (ghCommand(command, 'issue\\s+edit') && new RegExp(`--add-label[=\\s]+\\S*${LABEL}`).test(command)) ||
+    (ghCommand(command, 'api') && /labels/.test(command) && command.includes(LABEL));
+  if (addsLabel) {
+    block(
+      `Blocked: the "${LABEL}" label is the user's approval of the local review. ` +
+        'Post the review summary on the PR and ask the user to add it.',
+    );
+  }
 
-  block(
-    `Pull request blocked: commit ${target.slice(0, 7)} has not been reviewed locally.\n` +
-      'Before opening the PR:\n' +
-      '  1. Run the money-reviewer agent (if the diff touches src/, migrations/ or money tests).\n' +
-      '  2. Run /code-review on the branch diff against main.\n' +
-      '  3. Fix what they find, commit, push, and re-run until clean.\n' +
-      '  4. Record the reviewed commit: git rev-parse HEAD > .claude/.review-ok\n' +
-      'Any new commit after that requires a new review.',
-  );
+  process.exit(0);
 } catch (err) {
-  block(`Pull request blocked: review hook failed (${err?.message ?? err}).`);
+  block(`Blocked: review hook failed (${err?.message ?? err}).`);
 }

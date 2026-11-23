@@ -120,4 +120,4 @@ A short report:
 - **Deviations from the plan** and why.
 - **Not done / next phase**.
 - Remind the caller to run the `money-reviewer` agent on the diff (before committing, and again on
-  the final HEAD with `/code-review` before opening the PR, then `git rev-parse HEAD > .claude/.review-ok`).
+  the final HEAD with `/code-review` on the draft PR; the user approves with the `local-review-ok` label).
