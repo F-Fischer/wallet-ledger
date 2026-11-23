@@ -46,3 +46,7 @@ Features: [ledger foundation](docs/features/ledger-foundation.md) ·
 [demo web page](docs/features/demo-web.md) · [docs site](docs/features/docs-site.md)
 
 NestJS · TypeScript (ESM) · PostgreSQL 16 with explicit SQL (`pg`, no ORM) · Vitest · Vercel + Neon
+
+## License
+
+[MIT](LICENSE)

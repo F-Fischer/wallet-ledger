@@ -6,3 +6,5 @@ dist/
 .DS_Store
 public/
 docs/.vitepress/cache/
+.claude/.review-ok
+.claude/settings.local.json

@@ -8,7 +8,7 @@ task to a finished one is a judgement too, but one anyone can check.
 ## The scale
 
 A size covers everything needed to merge: code, tests, the feature page, a `money-reviewer` pass
-when money moves, and checking the preview deployment.
+when money moves, a local `/code-review`, and checking the preview deployment.
 
 | Size | Reference (already merged) | What it looks like |
 |---|---|---|
