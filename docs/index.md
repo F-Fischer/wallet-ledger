@@ -38,7 +38,7 @@ features:
     link: /decisions/0002-integer-cents
     linkText: The decision
   - title: Reconciliation
-    details: GET /admin/reconciliation proves every cached balance matches its entries. The demo shows it live.
+    details: GET /admin/reconciliation proves the ledger sums to zero and every cached balance matches its entries.
     link: /architecture/operations
     linkText: Operations
 ---

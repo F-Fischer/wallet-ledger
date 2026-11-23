@@ -6,7 +6,7 @@ Depends on: [`00-ledger-foundation.md`](00-ledger-foundation.md) (shared Phase 0
 
 ::: tip At a glance
 - **What:** a debit card that spends from `available` (virtual first, physical with ATM later), issued through Lithic.
-- **How:** authorizations reuse holds (`available → held → settlement payable`); what `available` can't cover goes to the user's receivable.
+- **How:** authorizations reuse holds (`available → held → settlement payable`) and are declined if they don't fit; what `available` can't cover later (over-capture, force post, refund reversal) goes to the user's receivable.
 - **Phase 1 (next):** a **simulated processor**, no partner account needed. ≈ 4 × L in 4 PRs ([§13](#13-rollout)).
 - **Why:** interchange revenue (≈ $4–6 per active card per month, assumed) and money that stays in the wallet.
 :::

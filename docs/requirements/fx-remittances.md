@@ -5,7 +5,7 @@ Depends on: [`00-ledger-foundation.md`](00-ledger-foundation.md) (shared Phase 0
 
 ::: tip At a glance
 Parked. Send USD from the wallet to Mexico, paid in MXN (SPEI or cash pickup) through a payout
-partner: quote → confirm (hold) → partner webhooks → delivered/failed/refunded. Ledger stays
+partner: quote → confirm (hold) → partner webhooks → delivered/failed/cancelled/refunded. Ledger stays
 USD-only; fee and FX spread are recognised on delivery. ≈ 1 XL + 2 L ([§13](#13-rollout)).
 :::
 

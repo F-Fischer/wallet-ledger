@@ -4,9 +4,9 @@
 · **Code:** `src/ledger/ledger.service.ts`, `src/database/transaction-host.ts`,
 `src/wallet/wallets.service.ts`, `src/idempotency/`, `src/webhooks/signature.ts`
 
-Five ledger tools that **FX remittances and the debit card both need**, built once: a per-user
-receivable, safe reversals, explicit balance locks, idempotency keyed by partner event id, and
-signed webhooks. No new endpoints; the only API change is `owed_cents`.
+The ledger building blocks **FX remittances and the debit card both need**, built once: a per-user
+receivable, safe reversals, explicit balance locks, idempotency keyed by partner event id and
+signed webhooks (plus a revenue/expense account naming convention). No new endpoints; the only API change is `owed_cents`.
 
 ## What problem it solves
 
