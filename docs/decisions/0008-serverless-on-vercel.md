@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** Deploy on Vercel (free) with Neon Postgres: migrations in the build, transaction-scoped locks only, no top-level `await bootstrap()`.<br>
+> **Why:** A public demo must be free to keep online, and serverless breaks boot-time migrations and session state.<br>
+> **Cost:** Two migration paths (local boot vs build), cold starts, and platform behaviour only visible in previews.
+
 ## Context
 
 The project needs a public deployment people can try, at no cost, with a real Postgres behind it.

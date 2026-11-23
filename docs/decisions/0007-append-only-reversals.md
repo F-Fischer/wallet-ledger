@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** Triggers reject `UPDATE`/`DELETE` on entries and journals; mistakes are fixed with reversal or correction entries.<br>
+> **Why:** A ledger whose past can change isn't an audit trail.<br>
+> **Cost:** Fixing data takes more ceremony than an `UPDATE`, by design.
+
 ## Context
 
 A ledger is only an audit trail if its past can't change. If an entry can be edited or deleted,

@@ -3,6 +3,12 @@
 Status: **done** ([#1](https://github.com/F-Fischer/wallet-ledger/pull/1), see [the feature page](../features/ledger-foundation.md)) · Owner: engineering · Last updated: 2026-11-23
 Used by: [`fx-remittances.md`](fx-remittances.md) and [`debit-card.md`](debit-card.md).
 
+::: tip At a glance
+Done (size **L**, the scale's reference). Six building blocks both features need: revenue/expense
+account names, reversal entries, a per-user receivable, `lockBalances`, `@Idempotent({ keyFrom })`
+and signed webhooks. See the [feature page](../features/ledger-foundation.md) for how they work.
+:::
+
 Both features need the same ledger building blocks, and today the codebase has none of them. This
 document is the single source for their names and behaviour. **Whichever feature ships first builds
 this phase**; the other one reuses it unchanged. Neither feature plan redefines anything here.

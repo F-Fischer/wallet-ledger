@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** Hand-written, parameterised SQL with the `pg` driver; schema in plain `migrations/*.sql`.<br>
+> **Why:** Correctness lives in `FOR UPDATE` order, `ON CONFLICT`, savepoints and `unnest`, exactly what an ORM hides.<br>
+> **Cost:** Row types are declared by hand, so tests (not the compiler) catch a renamed column.
+
 ## Context
 
 The correctness of this system lives in a handful of SQL statements: `select … for update` in a

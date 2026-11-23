@@ -4,10 +4,11 @@
 · **Code:** `src/ledger/ledger.service.ts`, `src/database/transaction-host.ts`,
 `src/wallet/wallets.service.ts`, `src/idempotency/`, `src/webhooks/signature.ts`
 
-## What problem it solves
+The ledger building blocks **FX remittances and the debit card both need**, built once: a per-user
+receivable, safe reversals, explicit balance locks, idempotency keyed by partner event id and
+signed webhooks (plus a revenue/expense account naming convention). No new endpoints; the only API change is `owed_cents`.
 
-FX remittances and debit cards both need ledger tools the wallet didn't have. This phase builds them
-once, so neither feature reinvents them.
+## What problem it solves
 
 | Business problem | Tool added | Without it |
 |---|---|---|
@@ -16,9 +17,6 @@ once, so neither feature reinvents them.
 | Deciding how to split a debit needs fresh balances | **`lockBalances`** | Two requests could read the same balance and both spend it |
 | Partners (Stripe, Lithic, payout partner) retry webhooks with their own event id, not our header | **`@Idempotent({ keyFrom })`** | A retried webhook could move money twice |
 | Anyone can call a webhook URL | **Signature guard** (HMAC over the raw body) | A forged "payout delivered" call could be stored as a real one |
-
-None of this adds endpoints yet: it is the toolbox the next features use. The only visible API
-change is `owed_cents` in `GET /wallets/:owner`.
 
 ## Where it fits
 
@@ -114,9 +112,11 @@ already held):
 3. Balance rows, in ascending id order (`lockBalances`, then `postTransaction`). A `lockBalances`
    after a post may only add ids that sort after what that post locked.
 
-Rows lock in byte order (`order by id collate "C"`), the same order as the JS checks. With the
-`postgres:16` default `en_US` collation, punctuation is ignored and `user:cx_y:…` would sort after
-`user:cxa:…`, so SQL and JS would disagree without it.
+::: details Why `collate "C"`
+Rows lock in byte order, the same order as the JS checks. With the `postgres:16` default `en_US`
+collation, punctuation is ignored and `user:cx_y:…` would sort after `user:cxa:…`, so SQL and JS
+would disagree.
+:::
 
 ## 3. Reversing a transaction safely
 

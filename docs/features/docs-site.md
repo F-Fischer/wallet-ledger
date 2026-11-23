@@ -1,22 +1,18 @@
 # Docs site
 
+**Status:** implemented · **Decision:** [ADR 0010](/decisions/0010-docs-site-vitepress) · **Code:**
+`docs/.vitepress/`, `src/site.ts`, `scripts/check-site.mjs`
+
+VitePress builds the markdown in `docs/` into `public/`, and the NestJS app serves it **next to the
+API**: one source, one deployment, one origin (the demo needs no CORS).
+
 ## What problem it solves
 
-The interesting part of this project is *why* it's built the way it is, and that lived in markdown
-files nobody visiting the deployment would ever see: the public URL showed one demo page. The
-architecture document also existed twice (markdown plus a hand-kept HTML copy), and the copies were
-starting to drift.
-
-The docs site puts everything on the deployment, from a single source: the markdown in `docs/` is
-the site. It adds a landing page, the live demo, the architecture split into readable pages,
-[architecture decision records](/decisions/), the feature pages and the roadmap, with navigation,
+The *why* of the project lived in markdown nobody visiting the deployment saw, and the architecture
+doc had a hand-kept HTML copy that was drifting. Now the markdown **is** the site, with navigation,
 search, dark mode and rendered diagrams.
 
 ## How it works
-
-VitePress builds `docs/` into `public/` during `pnpm build`. The NestJS app serves that folder as
-static files next to the API, so there is one deployment and one origin (the demo calls the API
-without CORS).
 
 ```mermaid
 flowchart LR
@@ -37,8 +33,8 @@ flowchart LR
 | Link check | `scripts/check-site.mjs` (`pnpm docs:check`, in CI) | Reads the built HTML and fails on internal links to a missing page or a missing `#anchor`; VitePress' own check covers pages only |
 | Demo | `docs/public/demo-app.html`, `docs/demo.md` | The existing single-file demo, copied as is and embedded in an iframe at `/demo` |
 
-Only files that exist are served, so API routes are unaffected; a request for `/wallets/nobody`
-falls through to the controller.
+Only existing files are served, so API routes are unaffected: `/wallets/nobody` falls through to
+the controller.
 
 ```mermaid
 sequenceDiagram
@@ -55,15 +51,14 @@ sequenceDiagram
   N-->>B: 404 {"error":{"code":"not_found",…}}
 ```
 
-Mermaid is about 2 MB. A plugin was tried first, but it made **every** page preload about 50
-Mermaid chunks; the theme hook replaced it, and pages without diagrams load 3 modules.
-
-Mermaid shrinks a diagram to fit its column, so in VitePress' default 688 px column the wide
-sequence diagrams were drawn at about 60% of their size (~9 px text). They now
-render at 92–100% on a 1440 px screen, and any diagram can be opened full screen.
-
-Heading ids follow GitHub's algorithm (`## 11. Decisions` → `#11-decisions`), so links like
-`00-ledger-foundation.md#3-account-naming-convention` work both on GitHub and on the site.
+::: details Design notes: Mermaid loading, diagram width, heading ids
+- **Mermaid is ~2 MB.** A plugin made every page preload ~50 chunks; the theme hook loads it only on
+  pages with a diagram (pages without one load 3 modules).
+- **Width.** In VitePress' default 688 px column, wide sequence diagrams drew at ~60% (~9 px text);
+  they now render at 92–100% on a 1440 px screen, and any diagram opens full screen.
+- **Heading ids** follow GitHub's algorithm (`## 11. Decisions` → `#11-decisions`), so the same
+  anchors work on GitHub and on the site.
+:::
 
 ## Try it
 
@@ -73,8 +68,7 @@ pnpm build        # nest build + vitepress build docs → public/
 pnpm start:prod   # the API and the site on http://localhost:3000
 ```
 
-For writing docs, `pnpm docs:dev` runs VitePress with hot reload on http://localhost:5173 (the
-demo there has no API behind it; use `start:dev` alongside or open the demo on :3000).
+Writing docs: `pnpm docs:dev` (hot reload on :5173; its demo has no API, so use :3000 for that).
 
 Verified against a running server:
 
@@ -108,17 +102,12 @@ curl -s http://localhost:3000/wallets/nobody
 | API routes still answer when no file matches | `api.e2e-spec.ts` › API routes still win over the site |
 | Every internal link and anchor in the built site resolves | `pnpm docs:check` (CI step after `pnpm build`) |
 
-The e2e tests read `public/`, so they need `pnpm build` (or `pnpm docs:build`) first; CI builds
-before testing. The site was also crawled in Chromium (Playwright, not part of CI): all 31 pages
-return 200, every internal link and `#anchor` resolves, every Mermaid diagram renders without a
-syntax error, no page scrolls sideways at 390 px, diagrams open full screen and zoom with the wheel, buttons,
-keyboard and a two-finger pinch on a phone, and the embedded demo creates a wallet, deposits
-and settles against the API with the ledger reconciling.
+The e2e tests read `public/`, so build first (CI does). Also crawled in Chromium (Playwright, not
+in CI): every page 200, links and anchors resolve, diagrams render and zoom (wheel, keys, pinch),
+no sideways scroll at 390 px, and the embedded demo works against the API.
 
 ## Limitations
 
-- On Vercel the HTML pages are served by the NestJS function, not straight from the CDN: each page
-  view is a function invocation. Hashed assets carry `s-maxage`, so the CDN can cache them.
+- On Vercel, HTML pages are served by the function (one invocation per view); hashed assets are CDN-cached.
 - The demo keeps its own styles and follows the OS light/dark setting, not the site's toggle.
-- The manual test cases (in [Test inventory](/architecture/test-inventory)) are plain lists; the old HTML copy had
-  checkboxes to track progress, which the site doesn't.
+- The manual test cases ([Test inventory](/architecture/test-inventory)) have no progress checkboxes, unlike the old HTML copy.

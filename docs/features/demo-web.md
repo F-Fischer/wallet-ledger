@@ -1,14 +1,15 @@
 # Demo web page
 
+**Status:** implemented · **Try it:** [/demo](/demo) · **Code:** `docs/public/demo-app.html`
+
+One dependency-free HTML page that lets anyone **see** the ledger rules hold: money is never
+created or lost, balances never go negative, a retry never moves money twice. It only calls the
+public API.
+
 ## What problem it solves
 
-The API is easy to test but hard to *see*. The demo page lets someone who has never read the code
-watch the ledger rules hold: money is never created or lost, a balance never goes negative, and a
-retried request never moves money twice.
-
-It is one static HTML file with no dependencies (`docs/public/demo-app.html`), embedded on the
-[docs site](./docs-site) at `/demo` and also reachable on its own at `/demo-app.html`. It only calls
-the public endpoints, so it adds no new behaviour to the backend.
+The API is easy to test but hard to *see*. The page is embedded on the [docs site](./docs-site) at
+`/demo` and also served alone at `/demo-app.html`; it adds no backend behaviour.
 
 ## What's on the page
 
@@ -20,10 +21,8 @@ the public endpoints, so it adds no new behaviour to the backend.
 | Reconciliation badge | `GET /admin/reconciliation`, refreshed after every action, and every 30 s only while the tab is visible (it scans the whole ledger) |
 | Stress test | Same idea as `scripts/load.ts`, from the browser: 3 fresh wallets, concurrent conflicting transfers, holds and duplicate requests, then 5 invariant checks |
 
-Amounts are typed in dollars but parsed as text into integer cents (`"12.50"` → `1250`), so the page
-never does float arithmetic on money either. Each deposit, hold and transfer form keeps one
-`Idempotency-Key` until the server answers and ignores submits while a request is in flight, so a
-double-click can't move money twice.
+- Dollars are parsed **as text** into cents (`"12.50"` → `1250`): no float math on money.
+- Each form keeps one `Idempotency-Key` until the server answers and ignores double submits.
 
 ```mermaid
 flowchart LR
@@ -55,16 +54,12 @@ curl -s http://localhost:3000/demo-app.html | grep -o '<title>.*</title>'
 |---|---|
 | The page is served as HTML | `api.e2e-spec.ts` › serves the demo app as a static page |
 
-The page itself was checked end to end in Chromium (Playwright, not part of CI): create two wallets,
-deposit and settle, transfer, an overdraft (422 shown as a toast), hold and capture, replay of a
-transfer (marked `replayed`, balance unchanged), and a 300-operation stress test with all invariants
-holding; no horizontal scroll at 390 px wide.
+Also checked end to end in Chromium (Playwright, not in CI): wallets, deposit/settle, transfer,
+overdraft toast, hold/capture, replay (balance unchanged), a 300-operation stress test, and no
+horizontal scroll at 390 px.
 
 ## Limitations
 
-- Anyone who can open the page can create wallets and "settle" deposits: the settle / return
-  endpoints stand in for bank webhooks and have no auth. Fine for a demo, not for production.
-- Deposits and holds created from the page are remembered in the browser (`localStorage`); the API
-  has no endpoint to list them.
-- The stress test is capped at 1,000 operations and 50 concurrent requests per click; there is no
-  server-side rate limiting.
+- Anyone can create wallets and "settle" deposits: settle/return stand in for bank webhooks, with no auth.
+- Deposits and holds are remembered in `localStorage`; the API can't list them.
+- Stress test capped at 1,000 operations / 50 concurrent per click; no server-side rate limiting.

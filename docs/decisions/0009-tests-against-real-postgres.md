@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** Unit, service and HTTP tests run against a real Postgres 16 (`wallet_test`), with a schema reset per file.<br>
+> **Why:** Locks, constraints and triggers are the behaviour under test; a mock would only test the mock.<br>
+> **Cost:** Tests need Postgres running, and files run one at a time.
+
 ## Context
 
 Most of the guarantees in this system are enforced by the database: row locks decide who wins a

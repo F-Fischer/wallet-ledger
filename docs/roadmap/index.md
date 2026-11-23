@@ -1,8 +1,7 @@
 # Roadmap
 
-What's built, what's next and what's parked. Each plan links to its full requirements document;
-sizes use the [effort scale](./estimation), relative to work already shipped in this repo, not
-calendar time.
+Done: the wallet core, the ledger foundation, the demo and this site. **Next: a virtual debit
+card.** Sizes use the [effort scale](./estimation) (relative to shipped work, never days).
 
 ## Status
 
@@ -23,48 +22,35 @@ calendar time.
 
 ## Next: debit card, phase 1
 
-A virtual debit card that spends from the wallet's `available` balance. Every card event is
-mirrored into the ledger with the primitives that already exist: an authorization reserves money
-(`available → held`), a clearing pays the merchant side, and anything that can't be covered by
-`available` (an over-capture, a force post, a refund reversal) goes to the user's `receivable`
-instead of pushing a balance negative.
+A virtual card that spends from `available`, built on the existing ledger tools:
 
-Phase 1 uses a **simulated processor** that emits the same events a real issuer processor would
-(authorization, incremental authorization, reversal, clearing, force post, refund), signed and sent
-through the webhook pipeline. That keeps it free of partner accounts and lets the demo "swipe" a
-card from the browser. A real processor (the plan compares Lithic, Marqeta and others) replaces the
-simulator later.
+- **Authorization** reserves money (`available → held`); **clearing** pays the merchant side.
+- What `available` can't cover (over-capture, force post, refund reversal) goes to the user's
+  **receivable**, never a negative balance.
+- A **simulated processor** sends the events a real one would (signed webhooks), so the demo can
+  "swipe" a card with no partner account. A real processor (Lithic, Marqeta…) replaces it later.
 
-The phase is split into 14 sized tasks and 4 pull requests:
-[debit card plan, §13](/requirements/debit-card#13-rollout).
+14 sized tasks in 4 PRs: [debit card plan, §13](/requirements/debit-card#13-rollout).
 
 ## Candidates
 
-- **Authentication with API keys.** Today every endpoint is public: anyone can move money in any
-  wallet or settle a deposit. Per-client API keys, scopes per endpoint, and separate keys for admin
-  and for the endpoints that stand in for bank webhooks.
-- **Outbox and outgoing webhooks.** Events written in the same transaction as the money movement
-  (transactional outbox) and delivered at least once to subscribers, with retries and HMAC
-  signatures.
-- **Withdrawals (outgoing ACH).** The mirror of deposits: pending → sent → returned. A return that
-  arrives after the user spent the money goes to the receivable.
-- **Bank statement reconciliation.** Import a statement file, match it against the ledger's
-  `sys:bank` movements and keep a queue of breaks to resolve: external reconciliation next to the
-  internal one that exists today.
+- **API keys.** Today every endpoint is public. Per-client keys and scopes; separate keys for admin and the stand-in bank webhooks.
+- **Outbox and outgoing webhooks.** Events written with the money movement, delivered at least once, signed.
+- **Withdrawals (outgoing ACH).** pending → sent → returned; a late return goes to the receivable.
+- **Bank statement reconciliation.** Match a statement against `sys:bank` and queue the breaks.
 
 ## Not planned
 
-Out of scope for now, with no plan: an orchestrator or saga layer, multi-currency balances, real
-payout and funding partners (deposits and holds simulate them), automatic sweeping of expired
-holds, a real-time phase (pushing balance changes to clients over SSE; the outbox candidate is its first half), and an ACH return *after* settlement (it needs a reversal on `available`; the receivable now
-makes it possible).
+- An orchestrator or saga layer; multi-currency balances.
+- Real payout and funding partners (deposits and holds simulate them).
+- Automatic sweeping of expired holds.
+- Real-time balance updates over SSE (the outbox candidate is its first half).
+- An ACH return *after* settlement (needs a reversal on `available`; the receivable now makes it possible).
 
 ## Parked: FX remittances
 
-Sending USD from the wallet to a recipient in Mexico, paid out in MXN by SPEI bank transfer or cash
-pickup through a payout partner: quotes with a locked rate and expiry, confirm with a hold, partner
-webhooks for delivered / failed / cancelled / refunded, fee and FX spread recognised on delivery,
-and the compliance it needs (Reg E cancellation window, sanctions screening, limits).
+USD from the wallet to a recipient in Mexico, paid in MXN (SPEI or cash pickup): locked quotes,
+hold on confirm, partner webhooks, fee and spread on delivery, Reg E and sanctions screening.
 
-The plan is complete and stays as a worked example of how a feature is specified. It's parked in
-favour of the debit card, which reuses more of what exists and needs no partner to demo.
+The plan is complete and stays as a worked example. Parked because the debit card reuses more of
+what exists and needs no partner to demo.

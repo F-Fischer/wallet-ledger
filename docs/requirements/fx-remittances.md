@@ -3,6 +3,12 @@
 Status: **parked** (see the [roadmap](../roadmap/index.md)) · Owner: product · Last updated: 2026-11-23
 Depends on: [`00-ledger-foundation.md`](00-ledger-foundation.md) (shared Phase 0 with [`debit-card.md`](debit-card.md)): account naming, reversal entries, per-user receivable, `lockBalances`, `@Idempotent({ keyFrom })` and webhook signature guards are defined there, not here.
 
+::: tip At a glance
+Parked. Send USD from the wallet to Mexico, paid in MXN (SPEI or cash pickup) through a payout
+partner: quote → confirm (hold) → partner webhooks → delivered/failed/cancelled/refunded. Ledger stays
+USD-only; fee and FX spread are recognised on delivery. ≈ 1 XL + 2 L ([§13](#13-rollout)).
+:::
+
 ## 1. Summary
 
 - **Problem.** Senders hold a USD balance in the wallet but can't send it home. Today the only way out is a generic hold capture into `sys:payouts_out`, with no exchange rate, no recipient, no fee and no record of what the family received.

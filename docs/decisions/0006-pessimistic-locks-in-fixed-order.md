@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** `postTransaction` locks the balance rows with `FOR UPDATE`, in one statement sorted by account id, before checking and writing.<br>
+> **Why:** "never negative" is a check-then-write that needs isolation, and a fixed lock order makes deadlocks impossible.<br>
+> **Cost:** Requests on the same wallet run one after the other; a very hot account bounds throughput.
+
 ## Context
 
 "A balance can never go negative" is a check-then-write: read the balance, verify the debit fits,

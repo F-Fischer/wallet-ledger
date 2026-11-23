@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+> **Decision:** Every money movement is a journal transaction whose lines sum to zero; `balances` is a cache of the entries.<br>
+> **Why:** A mutable balance column can't explain how it got there, and bugs that create money go unnoticed.<br>
+> **Cost:** One sign convention to learn, and a cache that reconciliation must keep honest.
+
 ## Context
 
 A wallet has to answer two questions at all times: *how much does this user have?* and *how did it

@@ -1,9 +1,7 @@
 # Effort scale
 
-Effort is estimated as a **size relative to work already shipped in this repo**, not in days. Plans
-used to carry calendar estimates ("3–4 days", "2 weeks") written before any code existed; the only
-one that can be checked, the ledger foundation, was built in two working sessions rather than "3–4 days of one engineer", but its commits can't say how many hours those sessions were. Comparing a new
-task to a finished one is a judgement too, but one anyone can check.
+Effort is a **size relative to merged PRs** (XS–XL), never days. Calendar estimates written before
+any code existed couldn't be checked; a comparison with a finished PR can.
 
 ## The scale
 
@@ -18,7 +16,8 @@ when money moves, a local `/code-review`, and checking the preview deployment.
 | **L** | [#1](https://github.com/F-Fischer/wallet-ledger/pull/1): the ledger foundation | Several new money flows, locking and concurrency, many tests, money review required |
 | **XL** | — | Bigger than the foundation: split it before starting |
 
-`L−` / `M+` are allowed when a task clearly sits between two references.
+`L−` / `M+` are allowed when a task clearly sits between two references. Docs work is sized by what
+is rewritten, not by lines moved: splitting or moving a page counts little.
 
 ## What pushes a task up a size
 
