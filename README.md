@@ -256,3 +256,7 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`.
 Orchestrator/saga, FX, real payouts, real Stripe, authentication, multi-currency, ACH returned
 after settlement (needs a reversal entry on `available`), automatic sweeping of expired holds, and
 the optional real-time phase (outbox + SSE).
+
+## License
+
+[MIT](LICENSE)
