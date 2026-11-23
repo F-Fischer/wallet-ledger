@@ -1,8 +1,16 @@
 # Inside the Nest app
 
+| Piece | What to know |
+|---|---|
+| [Project map](#project-map) | wallet → ledger → database; nothing depends on the wallet |
+| [Module graph](#nest-module-graph) | config and database are global; filter, pipe and interceptor apply to every route |
+| [Request lifecycle](#request-lifecycle-inside-nest) | pipes run *inside* the interceptor's transaction |
+| [Boot](#boot-and-shutdown) | migrations run before `listen`, once even with many instances |
+| [TransactionHost](#transactionhost-and-asynclocalstorage) | the request's client follows every `await`; nobody passes it around |
+
 ## Project map
 
-Each folder in `src/` owns one concern. Arrows show who depends on whom: the wallet depends on the ledger, the ledger depends on the database, and nothing depends on the wallet.
+Each folder in `src/` owns one concern; arrows point to dependencies.
 
 ```mermaid
 flowchart TB
@@ -45,7 +53,8 @@ flowchart TB
 
 ## Nest module graph
 
-`AppModule` wires everything. `ConfigModule` and `DatabaseModule` are global, so any provider can inject `ConfigService`, `PG_POOL` or `TransactionHost` without importing them. The filter, the validation pipe and the interceptor are registered as `APP_*` providers, which makes them apply to every route, in tests too.
+- `ConfigModule` and `DatabaseModule` are **global**: any provider can inject `ConfigService`, `PG_POOL` or `TransactionHost`.
+- Filter, validation pipe and interceptor are `APP_*` providers: they apply to **every route**, tests included.
 
 ```mermaid
 flowchart TB
@@ -71,7 +80,7 @@ flowchart TB
 
 ## Request lifecycle inside Nest
 
-Nest runs a fixed pipeline for every request. The important detail: **pipes run inside `next.handle()`**, so the interceptor's transaction is already open when validation runs, and a validation error travels back through the interceptor's `catch`. That is why the interceptor decides what to store by error type.
+**Pipes run inside `next.handle()`**: the transaction is already open during validation, and a validation error comes back through the interceptor's `catch`. That's why the interceptor decides what to store by error type.
 
 ```mermaid
 flowchart TB
@@ -95,7 +104,10 @@ flowchart TB
 
 ## Boot and shutdown
 
-`pnpm start:dev` builds the module graph, creates the pool, runs pending migrations in `onModuleInit` and only then starts listening. Each migration runs in its own transaction that takes a transaction-scoped advisory lock and re-checks `schema_migrations`, so two instances booting at once (or two test files) apply each file exactly once. Because no lock outlives a transaction, this also works through a transaction-mode pooler such as PgBouncer or Neon's pooled URL.
+Pending migrations run in `onModuleInit`, **before** `listen`.
+
+- Each file runs in its own transaction with a transaction-scoped advisory lock and re-checks `schema_migrations`: two instances booting at once apply it exactly once.
+- No lock outlives a transaction, so it works through transaction-mode poolers (PgBouncer, Neon pooled URL).
 
 ```mermaid
 sequenceDiagram
@@ -122,11 +134,13 @@ sequenceDiagram
 
 *Migrations are tracked by file name. To change the schema, add a new `NNN_….sql`; never edit an applied file.*
 
-On Vercel, `onModuleInit` skips migrations: the build step runs `pnpm db:migrate` instead, because functions don't ship the `migrations/` folder. `main.ts` also doesn't `await bootstrap()` at the top level: on Vercel, `listen` resolves only after the entry module has finished loading, so awaiting it deadlocks the function's init (see [ADR 0008](/decisions/0008-serverless-on-vercel)).
+On Vercel ([ADR 0008](/decisions/0008-serverless-on-vercel)):
+- the build runs `pnpm db:migrate`; boot skips it, because functions don't ship `migrations/`;
+- `main.ts` doesn't `await bootstrap()` at top level: `listen` resolves only after the entry module loads, so awaiting it deadlocks init.
 
 ## TransactionHost and AsyncLocalStorage
 
-`AsyncLocalStorage` gives each request its own invisible "context slot" that follows every `await`. `run()` puts the transaction's client in that slot; anything called inside reads it with `this.tx.db`. If `run()` is called while a transaction is already open, it reuses it instead of opening a second one.
+`run()` puts the transaction's client in an `AsyncLocalStorage` slot that follows every `await`; code inside reads it with `this.tx.db`. A nested `run()` reuses the open transaction.
 
 ```mermaid
 flowchart TB

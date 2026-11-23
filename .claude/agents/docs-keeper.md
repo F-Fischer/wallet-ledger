@@ -42,6 +42,10 @@ does, so a stale or wrong claim is a bug. You report; you don't fix.
 6. **Commands in docs.** For `curl` examples in changed feature pages, check the paths, methods and
    response shapes against the controllers and DTOs. You can't run them against a server; say which
    ones you checked by reading.
+7. **Style.** For each changed or new page, check the "Docs style" rules in `CLAUDE.md`: does the
+   first screen (title + 1–3 lines + at most one table or diagram) say what it is and why it
+   matters? Flag pages that open with background, long paragraphs, or detail that belongs in a
+   `::: details` block or a reference page.
 
 ## Output
 A list, most severe first: `file:line`, what the doc says, what the code says (with its

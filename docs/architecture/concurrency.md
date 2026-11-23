@@ -1,6 +1,6 @@
 # Concurrency: why it never goes negative
 
-Before computing the new balance, `postTransaction` locks the `balances` rows with `FOR UPDATE`, always sorted by `account_id` so two transactions never lock in crossed order (deadlock). Two holds on the same wallet run one after the other.
+`postTransaction` locks the `balances` rows (`FOR UPDATE`) **before** computing new balances, always **sorted by `account_id`**. Two spends on one wallet run one after the other, and the second sees the real balance.
 
 ```mermaid
 sequenceDiagram
@@ -23,8 +23,10 @@ sequenceDiagram
 
 ## Why sorted locking prevents deadlocks
 
-Two transfers in opposite directions at the same time: Ana → Beto and Beto → Ana. Each needs both `available` rows. If each locked its own sender first, they would wait on each other forever. Because `postTransaction` always locks in `account_id` order, both start with the same row, and one simply waits.
+Ana → Beto and Beto → Ana at the same time both need both rows. Locking the sender first would
+deadlock; locking in `account_id` order makes both start with the same row, so one just waits.
 
+::: details Both orders, step by step
 ```mermaid
 sequenceDiagram
   participant T1 as Ana → Beto
@@ -55,3 +57,4 @@ sequenceDiagram
 ```
 
 *With `ORDER BY a.id FOR UPDATE` (what the code does).*
+:::

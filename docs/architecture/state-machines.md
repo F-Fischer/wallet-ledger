@@ -1,6 +1,6 @@
 # Deposit and hold states
 
-Every transition locks the row with `SELECT … FOR UPDATE`. Repeating the transition the row is already in (for example, a duplicate webhook) returns the object without doing anything. Any other transition is a 409.
+Each transition locks the row (`FOR UPDATE`). Repeating the current state (a duplicate webhook) is a **no-op**; any other invalid transition is a **409**.
 
 ```mermaid
 stateDiagram-v2

@@ -1,5 +1,8 @@
 # Data model
 
+Money lives only in the ledger (`entries` + `journal_transactions`, append-only); `balances` is a
+cache of it. `deposits` and `holds` track process state, `idempotency_keys` stores responses.
+
 ```mermaid
 erDiagram
   accounts ||--|| balances : "balance cache"
@@ -51,4 +54,4 @@ erDiagram
   }
 ```
 
-*`entries` and `journal_transactions` have triggers that reject UPDATE and DELETE. `deposits` and `holds` track process state; the money itself lives only in the ledger.*
+*Triggers reject `UPDATE` and `DELETE` on `entries` and `journal_transactions`.*

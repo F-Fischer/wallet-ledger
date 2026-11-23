@@ -57,6 +57,14 @@ no partial writes, idempotent requests, reconciliation).
   ADR in `docs/decisions/`.
 - The user reviews and merges (squash). Don't merge PRs yourself.
 
+## Docs style
+- First screen of every page (and of every `##` section) says what it is and why it matters:
+  1–3 lines, then at most one table or diagram. Details come after and refer back to it.
+- Bullets over paragraphs; one idea per sentence; cut words that don't change the meaning.
+- Long material (full inventories, traces, long examples) goes in `::: details` blocks or a
+  separate reference page, linked from the first screen.
+- Keep headings that other pages link to (anchors); `pnpm docs:check` catches broken ones.
+
 ## Rules
 - Money is an integer number of cents. Never use floats for amounts.
 - A balance can never go negative; check before mutating.

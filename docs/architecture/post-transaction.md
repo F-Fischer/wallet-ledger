@@ -1,8 +1,10 @@
 # postTransaction and full traces
 
-## postTransaction step by step
+`postTransaction(key, kind, lines)` is the **only** way money moves: check the lines sum to 0,
+claim the journal key, lock balances in order, refuse negatives, write entries and balances.
+Any error aborts the surrounding transaction, so nothing is ever half-written.
 
-The single entry point for moving money. Every service builds a list of lines and hands it here.
+## postTransaction step by step
 
 ```mermaid
 flowchart TB
@@ -22,11 +24,11 @@ flowchart TB
   W --> OUT["return transactionId, replayed: false"]
 ```
 
-*Any error thrown here aborts the surrounding transaction (or savepoint), so the journal row inserted in step 2 disappears too. Nothing is ever half-written.*
+*An error after the journal `INSERT` rolls it back too (transaction or savepoint).*
 
 ## Full trace: settling a deposit
 
-Everything that happens for one `POST /deposits/:id/settle`, from the HTTP request to the commit.
+One `POST /deposits/:id/settle`, from request to commit.
 
 ```mermaid
 sequenceDiagram
@@ -61,7 +63,7 @@ sequenceDiagram
 
 ## Full trace: a hold without funds
 
-Why a failed hold leaves nothing behind and why the retry gets the same 422 without running again.
+A failed hold leaves nothing behind; the retry gets the same 422 without running again.
 
 ```mermaid
 sequenceDiagram

@@ -1,8 +1,10 @@
 # Errors, reconciliation and pagination
 
-## Error handling
+- **Errors:** one filter, one JSON shape (`code · message · details`); only business errors are stored under the idempotency key.
+- **Reconciliation:** `GET /admin/reconciliation` recomputes every balance from the entries and lists mismatches.
+- **Pagination:** entry history uses a cursor (`before=<id>`), not `OFFSET`.
 
-Every error ends up in `DomainExceptionFilter`, which always answers with the same JSON shape. The interceptor only stores business errors under the idempotency key.
+## Error handling
 
 ```mermaid
 flowchart LR
@@ -26,7 +28,7 @@ flowchart LR
 
 ## Reconciliation
 
-`GET /admin/reconciliation` recomputes everything from the immutable entries and compares it with the `balances` cache. If someone wrote a balance by hand, it shows up here.
+Compares the `balances` cache with what the immutable entries say. A hand-edited balance shows up as a mismatch.
 
 ```mermaid
 flowchart TB
@@ -44,7 +46,7 @@ flowchart TB
 
 ## Entry history pagination
 
-`GET /wallets/:owner/entries` uses keyset pagination: instead of `OFFSET`, the client sends the last id it saw. It stays fast and stable even while new entries keep arriving, because entry ids only grow.
+`GET /wallets/:owner/entries`: the client sends the last id it saw. Entry ids only grow, so pages stay fast and stable while new entries arrive.
 
 ```mermaid
 sequenceDiagram
