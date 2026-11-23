@@ -45,7 +45,8 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Claude subscription token (claude setup-token), not a prepaid API key.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
