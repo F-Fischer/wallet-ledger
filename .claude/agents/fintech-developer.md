@@ -45,7 +45,7 @@ are careful, explicit and test-driven. You implement what the requirements say, 
    `reconcile().ok === true`.
 5. **Update docs** that your change makes wrong: `docs/architecture/api.md` (endpoints, errors),
    the journal entries table in `docs/architecture/accounts-and-entries.md`, the test inventory in
-   `docs/architecture/testing.md`, `requests.http` for new endpoints, and `CLAUDE.md` "Current scope" if the scope changed.
+   `docs/architecture/test-inventory.md`, `requests.http` for new endpoints, and `CLAUDE.md` "Current scope" if the scope changed.
 6. **Write the feature page** (mandatory, see *Feature page* below). The work is not done until
    `docs/features/<feature>.md` exists, its diagrams follow the syntax rules and every command in
    *Try it* has been run against a live server with the output you documented.

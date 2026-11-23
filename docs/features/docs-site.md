@@ -120,5 +120,5 @@ and settles against the API with the ledger reconciling.
 - On Vercel the HTML pages are served by the NestJS function, not straight from the CDN: each page
   view is a function invocation. Hashed assets carry `s-maxage`, so the CDN can cache them.
 - The demo keeps its own styles and follows the OS light/dark setting, not the site's toggle.
-- The manual test cases (in [Testing](/architecture/testing)) are plain lists; the old HTML copy had
+- The manual test cases (in [Test inventory](/architecture/test-inventory)) are plain lists; the old HTML copy had
   checkboxes to track progress, which the site doesn't.

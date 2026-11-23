@@ -62,4 +62,4 @@ Errors always look like `{ "error": { "code", "message", "details"? } }`. Codes 
   because `response_body` is stored as `jsonb`.
 
 `requests.http` in the repository has the full flow for an HTTP client (WebStorm, VS Code REST
-Client); [Testing](./testing#manual-test-cases) has the same flow with `curl`.
+Client); [Test inventory](./test-inventory#manual-test-cases) has the same flow with `curl`.
