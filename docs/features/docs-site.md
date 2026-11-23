@@ -33,7 +33,7 @@ flowchart LR
 | Theme hook | `docs/.vitepress/theme/index.ts` | Draws Mermaid diagrams in the browser, importing Mermaid only on pages that have one; redraws on light/dark switch |
 | Static serving | `src/site.ts` | `useStaticAssets(public/, { extensions: ['html'] })`, used by `main.ts` and the e2e test app; hashed `assets/` get `immutable` caching |
 | Diagram zoom | `docs/.vitepress/theme/diagram-zoom.ts` | Click (or tap) a diagram to open it full screen: wheel, `+`/`-`/`0` keys, buttons or pinch to zoom, drag to pan, Esc to close |
-| Wide pages | `transformPageData` in `config.ts`, `theme/custom.css` | Architecture and feature pages (the ones with diagrams) get a column of up to 1100 px instead of 688 px; the outline aside shows only from 1800 px wide |
+| Page layout | `theme/custom.css` | Every doc page gets the same column, up to 1100 px instead of VitePress' 688 px, so moving between sections doesn't shift the layout; tables and diagrams use the full width, running text stays at ~760 px; the outline aside shows only from 1800 px wide. The nav search box is 240–360 px wide |
 | Link check | `scripts/check-site.mjs` (`pnpm docs:check`, in CI) | Reads the built HTML and fails on internal links to a missing page or a missing `#anchor`; VitePress' own check covers pages only |
 | Demo | `docs/public/demo-app.html`, `docs/demo.md` | The existing single-file demo, copied as is and embedded in an iframe at `/demo` |
 
@@ -59,7 +59,7 @@ Mermaid is about 2 MB. A plugin was tried first, but it made **every** page prel
 Mermaid chunks; the theme hook replaced it, and pages without diagrams load 3 modules.
 
 Mermaid shrinks a diagram to fit its column, so in VitePress' default 688 px column the wide
-sequence diagrams were drawn at about 60% of their size (~9 px text). On the wide pages they now
+sequence diagrams were drawn at about 60% of their size (~9 px text). They now
 render at 92–100% on a 1440 px screen, and any diagram can be opened full screen.
 
 Heading ids follow GitHub's algorithm (`## 11. Decisions` → `#11-decisions`), so links like
