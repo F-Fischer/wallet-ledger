@@ -6,6 +6,8 @@
 
 ## Error handling
 
+Every error goes through `DomainExceptionFilter`, which turns it into the same JSON shape.
+
 ```mermaid
 flowchart LR
   subgraph sources[Where errors come from]

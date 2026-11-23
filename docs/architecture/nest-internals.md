@@ -1,5 +1,7 @@
 # Inside the Nest app
 
+How the Nest app is wired so that one request = one Postgres transaction.
+
 | Piece | What to know |
 |---|---|
 | [Project map](#project-map) | wallet → ledger → database; nothing depends on the wallet |

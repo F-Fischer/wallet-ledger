@@ -7,10 +7,11 @@ Why: [ADR 0008](/decisions/0008-serverless-on-vercel).
 ## Set it up
 
 1. **Add New → Project**, import the repo, preset **NestJS** (ignore the Vite suggestion: it
-   would build a static site with no API). Keep default build settings.
+   would build a static site with no API; it shows up because Vitest needs `vite`). Keep default build settings.
 2. **Storage → Neon → Create** and connect it; check `DATABASE_URL` under Environment Variables
    (the pooled URL is fine).
-3. Deploy. `vercel.json` builds with `pnpm build && pnpm db:migrate` (Nest, the site, migrations).
+3. Deploy. `vercel.json` builds with `pnpm build && pnpm db:migrate` (Nest, the site, migrations);
+   `DATABASE_URL` is available during the build.
 
 ## What makes it work on serverless
 
@@ -18,7 +19,7 @@ Why: [ADR 0008](/decisions/0008-serverless-on-vercel).
   `api/`), so on Vercel the app skips migrate-at-boot.
 - **No top-level `await bootstrap()`:** awaiting `listen` deadlocks init (requests hang ~60 s, then
   `INTERNAL_FUNCTION_INVOCATION_FAILED`).
-- **`attachDatabasePool(pool)`** releases idle connections before the function suspends.
+- **`attachDatabasePool(pool)`** releases idle connections before the function suspends (no-op outside Vercel).
 - **Transaction-scoped locks only:** concurrent cold starts apply each migration once, and it works
   through transaction-mode poolers. Nothing depends on session state.
 - **The site is served by the function** (`src/site.ts`), next to the API.

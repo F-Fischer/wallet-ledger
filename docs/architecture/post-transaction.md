@@ -1,6 +1,6 @@
 # postTransaction and full traces
 
-`postTransaction(key, kind, lines)` is the **only** way money moves: check the lines sum to 0,
+`postTransaction({ idempotencyKey, kind, lines })` is the **only** way money moves: check the lines sum to 0,
 claim the journal key, lock balances in order, refuse negatives, write entries and balances.
 Any error aborts the surrounding transaction, so nothing is ever half-written.
 
